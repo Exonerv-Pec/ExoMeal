@@ -1,0 +1,316 @@
+/* ExoMeal base styles. Component layout lives next to the components. */
+
+:root {
+  --chalk: #eef1ec;
+  --paper: #fafbf8;
+  --ink: #17211c;
+  --ink-soft: #53605a;
+  --line: #d2d9cd;
+  --line-strong: #aab5a7;
+  --moss: #2b6a4d;
+  --moss-ink: #1f5139;
+  --danger: #a8261f;
+
+  /* One colour per meal, taken from the market stall. */
+  --yolk: #e3a21a;
+  --leaf: #4c9b5e;
+  --berry: #5b5ccf;
+  --tangerine: #ea7632;
+
+  --font-body: 'Onest Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Unbounded Variable', 'Onest Variable', system-ui, sans-serif;
+
+  --r-s: 6px;
+  --r-m: 12px;
+  --focus: 0 0 0 2px var(--chalk), 0 0 0 4px var(--moss);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chalk: #0f1512;
+    --paper: #18211c;
+    --ink: #e7eee9;
+    --ink-soft: #9fb0a5;
+    --line: #2a372f;
+    --line-strong: #3f5045;
+    --moss: #6fcf97;
+    --moss-ink: #8fe0b0;
+    --danger: #ff8a80;
+    --yolk: #f0bc4a;
+    --leaf: #6fc283;
+    --berry: #8f90f0;
+    --tangerine: #f59a62;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--chalk);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  hyphens: auto;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.15rem;
+  font-weight: 650;
+}
+
+h3 {
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--moss-ink);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.meal-breakfast {
+  --c: var(--yolk);
+}
+.meal-lunch {
+  --c: var(--leaf);
+}
+.meal-dinner {
+  --c: var(--berry);
+}
+.meal-snack {
+  --c: var(--tangerine);
+}
+
+/* --- Buttons --------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.4rem;
+  padding: 0.4rem 0.95rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-s);
+  background: var(--paper);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:hover {
+  border-color: var(--ink);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--chalk);
+}
+
+.btn-primary:hover {
+  background: var(--moss-ink);
+  border-color: var(--moss-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn-primary:hover {
+    background: #fff;
+    border-color: #fff;
+    color: #0f1512;
+  }
+}
+
+.btn-quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn-quiet:hover {
+  background: color-mix(in oklab, var(--ink) 8%, transparent);
+  border-color: transparent;
+}
+
+.btn-danger {
+  color: var(--danger);
+}
+
+.btn-small {
+  min-height: 2rem;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.88rem;
+}
+
+.btn-icon {
+  width: 1.9rem;
+  height: 1.9rem;
+  min-height: 0;
+  padding: 0;
+  border-radius: var(--r-s);
+}
+
+/* --- Forms ----------------------------------------------------------------- */
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+
+.field > span:first-child {
+  font-weight: 600;
+}
+
+input[type='text'],
+input[type='number'],
+input[type='search'],
+select,
+textarea {
+  width: 100%;
+  min-height: 2.4rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-s);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--moss);
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chip:has(input:checked) {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--chalk);
+}
+
+.chip:has(input:focus-visible) {
+  box-shadow: var(--focus);
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.notice {
+  padding: 0.7rem 0.9rem;
+  border-left: 4px solid var(--tangerine);
+  background: color-mix(in oklab, var(--tangerine) 12%, var(--paper));
+  border-radius: 0 var(--r-s) var(--r-s) 0;
+  font-size: 0.93rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

@@ -1,0 +1,183 @@
+import { calcTargets } from '../core/nutrition';
+import {
+  clonePlan,
+  emptyPlan,
+  emptySlots,
+  generatePlan,
+  placeRecipe,
+  rerollSlot,
+  MAX_PORTION,
+  MIN_PORTION,
+} from '../core/planner';
+import { buildPrepList, buildShoppingList, indexRecipes } from '../core/shopping';
+import { defaultProfile, loadState, parseState, saveState, type SavedState } from '../core/storage';
+import type { Food, FoodIndex, MealType, Plan, Profile, Recipe } from '../core/types';
+import { BUILTIN_RECIPES, FOODS } from '../data';
+
+export type Route = 'plan' | 'recipes' | 'shopping' | 'cook' | 'profile';
+export const ROUTES: Route[] = ['plan', 'recipes', 'shopping', 'cook', 'profile'];
+
+function routeFromHash(): Route {
+  const name = location.hash.replace(/^#\/?/, '') as Route;
+  return ROUTES.includes(name) ? name : 'plan';
+}
+
+class AppState {
+  profile = $state<Profile>(defaultProfile());
+  plan = $state<Plan>(emptyPlan());
+  customRecipes = $state<Recipe[]>([]);
+  customFoods = $state<Food[]>([]);
+  checked = $state<Record<string, boolean>>({});
+
+  route = $state<Route>('plan');
+  /** Recipe shown in the details window. */
+  openRecipeId = $state<string | null>(null);
+  /** Slot waiting for a recipe from the picker. */
+  picking = $state<{ day: number; slot: MealType } | null>(null);
+  /** Recipe being edited; "new" = a blank form. */
+  editing = $state<Recipe | 'new' | null>(null);
+
+  /** Profile with numbers kept inside sane bounds, even while a field is half-typed. */
+  safeProfile = $derived(parseState({ profile: $state.snapshot(this.profile) }).profile);
+  targets = $derived(calcTargets(this.safeProfile));
+  foods: FoodIndex = $derived(new Map([...FOODS, ...this.customFoods].map((f) => [f.id, f])));
+  recipes = $derived([...BUILTIN_RECIPES, ...this.customRecipes]);
+  recipeIndex = $derived(indexRecipes(this.recipes));
+  shopping = $derived(buildShoppingList(this.plan, this.recipeIndex, this.foods));
+  prep = $derived(buildPrepList(this.plan, this.recipeIndex));
+  hasPlan = $derived(this.plan.days.some((d) => Object.keys(d).length > 0));
+  lockedCount = $derived(this.plan.days.reduce((n, d) => n + Object.values(d).filter((m) => m?.locked).length, 0));
+  missingSlots = $derived(emptySlots(this.safeProfile, this.recipes, this.foods));
+
+  constructor() {
+    if (typeof localStorage === 'undefined') return;
+    this.apply(loadState());
+    this.route = routeFromHash();
+    window.addEventListener('hashchange', () => (this.route = routeFromHash()));
+
+    $effect.root(() => {
+      $effect(() => {
+        saveState($state.snapshot(this.snapshot()) as SavedState);
+      });
+    });
+  }
+
+  private snapshot(): SavedState {
+    return {
+      version: 1,
+      profile: this.profile,
+      plan: this.plan,
+      customRecipes: this.customRecipes,
+      customFoods: this.customFoods,
+      checked: this.checked,
+    };
+  }
+
+  private apply(s: SavedState): void {
+    this.profile = s.profile;
+    this.plan = s.plan;
+    this.customRecipes = s.customRecipes;
+    this.customFoods = s.customFoods;
+    this.checked = s.checked;
+  }
+
+  go(route: Route): void {
+    location.hash = `#/${route}`;
+  }
+
+  // --- Week ---------------------------------------------------------------
+
+  /** Builds a new week. Locked meals stay where they are. */
+  generate(): void {
+    this.plan = generatePlan(this.safeProfile, this.targets, this.recipes, this.foods, {
+      base: this.hasPlan ? $state.snapshot(this.plan) as Plan : null,
+    });
+    this.checked = {};
+  }
+
+  unlockAll(): void {
+    const next = clonePlan($state.snapshot(this.plan) as Plan);
+    for (const d of next.days) for (const m of Object.values(d)) if (m) delete m.locked;
+    this.plan = next;
+  }
+
+  toggleLock(day: number, slot: MealType): void {
+    const m = this.plan.days[day][slot];
+    if (m) m.locked = !m.locked;
+  }
+
+  setPortions(day: number, slot: MealType, portions: number): void {
+    const m = this.plan.days[day][slot];
+    if (m) m.portions = Math.min(MAX_PORTION, Math.max(MIN_PORTION, portions));
+  }
+
+  swap(day: number, slot: MealType): void {
+    this.plan = rerollSlot(
+      $state.snapshot(this.plan) as Plan,
+      day,
+      slot,
+      this.safeProfile,
+      this.targets,
+      this.recipes,
+      this.foods,
+    );
+  }
+
+  remove(day: number, slot: MealType): void {
+    delete this.plan.days[day][slot];
+  }
+
+  place(day: number, slot: MealType, recipeId: string): void {
+    this.plan = placeRecipe(
+      $state.snapshot(this.plan) as Plan,
+      day,
+      slot,
+      recipeId,
+      this.safeProfile,
+      this.targets,
+      this.recipes,
+      this.foods,
+    );
+  }
+
+  // --- Recipes and foods ------------------------------------------------------
+
+  saveRecipe(recipe: Recipe): void {
+    const i = this.customRecipes.findIndex((r) => r.id === recipe.id);
+    if (i >= 0) this.customRecipes[i] = recipe;
+    else this.customRecipes.push(recipe);
+  }
+
+  deleteRecipe(id: string): void {
+    this.customRecipes = this.customRecipes.filter((r) => r.id !== id);
+    for (const day of this.plan.days) {
+      for (const slot of Object.keys(day) as MealType[]) if (day[slot]?.recipeId === id) delete day[slot];
+    }
+  }
+
+  addFood(food: Food): void {
+    this.customFoods.push({ ...food, custom: true });
+  }
+
+  // --- Data ------------------------------------------------------------------
+
+  exportJson(): string {
+    return JSON.stringify($state.snapshot(this.snapshot()), null, 2);
+  }
+
+  importJson(text: string): void {
+    this.apply(parseState(JSON.parse(text)));
+  }
+
+  resetAll(): void {
+    this.apply(parseState(null));
+  }
+
+  // --- Shopping ticks ----------------------------------------------------------
+
+  toggleChecked(key: string): void {
+    this.checked[key] = !this.checked[key];
+  }
+}
+
+export const app = new AppState();
