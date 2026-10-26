@@ -84,7 +84,8 @@ export type Goal = 'lose' | 'maintain' | 'gain';
 /** Things a person may want to avoid on top of the diet. */
 export type Exclusion = 'gluten' | 'dairy' | 'egg' | 'nuts' | 'peanut' | 'fish' | 'shellfish' | 'soy' | 'sesame';
 
-export interface Profile {
+/** What the calorie target is calculated from. */
+export interface Body {
   sex: Sex;
   age: number;
   heightCm: number;
@@ -93,6 +94,24 @@ export interface Profile {
   goal: Goal;
   /** Overrides the calculated calories when set. */
   kcalOverride: number | null;
+}
+
+/** One member of the household. */
+export interface Person extends Body {
+  id: string;
+  name: string;
+}
+
+/** Max number of people in a household. */
+export const MAX_PEOPLE = 10;
+
+/**
+ * Household settings. The menu is shared, so diet, exclusions and the rest
+ * apply to everyone; each person has their own body and calorie target.
+ */
+export interface Profile {
+  /** Always at least one. The first person is the one the menu is fitted to. */
+  people: Person[];
   diet: Diet;
   exclusions: Exclusion[];
   excludedFoods: string[];

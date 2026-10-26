@@ -47,7 +47,11 @@
     <div>
       <h1>Покупки на неделю</h1>
       {#if app.hasPlan}
-        <p class="muted">Куплено {done} из {buyItems.length}. Количества собраны из всех блюд недели.</p>
+        <p class="muted">
+          Куплено {done} из {buyItems.length}. Количества собраны из всех блюд недели{app.household.members.length > 1
+            ? `, на ${app.household.members.length} чел.`
+            : '.'}
+        </p>
       {/if}
     </div>
     {#if app.hasPlan}

@@ -1,4 +1,4 @@
-import type { Food, Plan, Profile, Recipe } from './types';
+import { MAX_PEOPLE, type Food, type Person, type Plan, type Profile, type Recipe } from './types';
 
 export const STORAGE_KEY = 'exomeal:v1';
 
@@ -12,8 +12,10 @@ export interface SavedState {
   checked: Record<string, boolean>;
 }
 
-export function defaultProfile(): Profile {
+export function defaultPerson(id = 'p1', name = 'Я'): Person {
   return {
+    id,
+    name,
     sex: 'female',
     age: 30,
     heightCm: 168,
@@ -21,6 +23,12 @@ export function defaultProfile(): Profile {
     activity: 'light',
     goal: 'maintain',
     kcalOverride: null,
+  };
+}
+
+export function defaultProfile(): Profile {
+  return {
+    people: [defaultPerson()],
     diet: 'omnivore',
     exclusions: [],
     excludedFoods: [],
@@ -50,14 +58,34 @@ export function parseState(raw: unknown): SavedState {
   const list = <T extends string>(v: unknown, all: readonly T[]): T[] =>
     Array.isArray(v) ? v.filter((x): x is T => typeof x === 'string' && (all as readonly string[]).includes(x)) : [];
 
+  const person = (raw: Record<string, unknown>, i: number): Person => {
+    const d = defaultPerson();
+    const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, 40) : '';
+    return {
+      id: typeof raw.id === 'string' && raw.id ? raw.id.slice(0, 40) : `p${i + 1}`,
+      name: name || (i === 0 ? 'Я' : `Человек ${i + 1}`),
+      sex: oneOf(raw.sex, ['female', 'male'] as const, d.sex),
+      age: num(raw.age, d.age, 10, 100),
+      heightCm: num(raw.heightCm, d.heightCm, 100, 230),
+      weightKg: num(raw.weightKg, d.weightKg, 30, 300),
+      activity: oneOf(raw.activity, ['sedentary', 'light', 'moderate', 'high', 'athlete'] as const, d.activity),
+      goal: oneOf(raw.goal, ['lose', 'maintain', 'gain'] as const, d.goal),
+      kcalOverride: typeof raw.kcalOverride === 'number' && raw.kcalOverride > 0 ? raw.kcalOverride : null,
+    };
+  };
+
+  // Before households existed, the body fields sat on the profile itself:
+  // that profile becomes the first person.
+  const rawPeople = Array.isArray(p.people) ? p.people.filter(isObject) : [p];
+  const people = (rawPeople.length ? rawPeople : [{}]).slice(0, MAX_PEOPLE).map(person);
+  const seen = new Set<string>();
+  for (const x of people) {
+    while (seen.has(x.id)) x.id += '-2';
+    seen.add(x.id);
+  }
+
   const profile: Profile = {
-    sex: oneOf(p.sex, ['female', 'male'] as const, base.sex),
-    age: num(p.age, base.age, 10, 100),
-    heightCm: num(p.heightCm, base.heightCm, 100, 230),
-    weightKg: num(p.weightKg, base.weightKg, 30, 300),
-    activity: oneOf(p.activity, ['sedentary', 'light', 'moderate', 'high', 'athlete'] as const, base.activity),
-    goal: oneOf(p.goal, ['lose', 'maintain', 'gain'] as const, base.goal),
-    kcalOverride: typeof p.kcalOverride === 'number' && p.kcalOverride > 0 ? p.kcalOverride : null,
+    people,
     diet: oneOf(p.diet, ['omnivore', 'pescatarian', 'vegetarian', 'vegan'] as const, base.diet),
     exclusions: list(p.exclusions, ['gluten', 'dairy', 'egg', 'nuts', 'peanut', 'fish', 'shellfish', 'soy', 'sesame'] as const),
     excludedFoods: Array.isArray(p.excludedFoods) ? p.excludedFoods.filter((x): x is string => typeof x === 'string') : [],

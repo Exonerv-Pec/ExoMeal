@@ -10,6 +10,7 @@ A weekly meal planner that works offline. Press one button and get a week of hea
 
 - **Builds a week.** Four meals a day (breakfast, lunch, dinner, snack, each can be switched off). Every day lands within a few percent of your calorie target, and protein is kept near the goal. Dishes do not repeat day after day.
 - **You stay in control.** Pin a dish and it survives "build again". Swap one meal for a random one, pick a dish yourself, or change the portion size in quarters.
+- **For the whole family.** Add people to the household: each gets their own calorie and macro target. The menu is shared, portions are sized for each person, and the shopping list and cooking batches cover everyone.
 - **Calculates your target.** Mifflin–St Jeor from age, height, weight, activity and goal, with a safety floor. You can type your own calories instead.
 - **Respects your diet.** Vegan, vegetarian, pescatarian, plus exclusions (gluten, dairy, eggs, nuts, peanuts, fish, shellfish, soy, sesame), foods you dislike, and a time limit per dish. Diet labels on recipes are computed from the ingredients, so they cannot drift out of date.
 - **Shopping list for the week.** Amounts from all meals are added up (300 g + 200 g onion becomes one line), shown the way people buy them (pieces, kilograms), grouped by shop aisle. Oils and spices go to a separate "check at home" group. Copy it, download it, print it, tick items off.

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { MEAL_ORDER, type Activity, type Diet, type Exclusion, type Goal } from '../core/types';
+  import { MAX_PEOPLE, MEAL_ORDER, type Activity, type Diet, type Exclusion, type Goal } from '../core/types';
   import { app } from './app.svelte';
-  import { fmtInt } from './format';
+  import { fmtInt, fmtPortions } from './format';
   import Icon from './Icon.svelte';
   import { ACTIVITY_LABEL, DIET_LABEL, EXCLUSION_LABEL, GOAL_LABEL, MEAL_LABEL } from './labels';
 
@@ -10,8 +10,23 @@
   const diets = Object.keys(DIET_LABEL) as Diet[];
   const exclusions = Object.keys(EXCLUSION_LABEL) as Exclusion[];
 
-  const t = $derived(app.targets);
-  const minor = $derived(app.safeProfile.age < 18);
+  let sel = $state(0);
+  const idx = $derived(Math.min(sel, app.profile.people.length - 1));
+  const member = $derived(app.household.members[Math.min(idx, app.household.members.length - 1)]);
+  const t = $derived(member.targets);
+
+  function addPerson() {
+    const i = app.addPerson();
+    if (i >= 0) sel = i;
+  }
+
+  function removePerson() {
+    const name = app.profile.people[idx]?.name ?? '';
+    if (confirm(`Убрать «${name}» из семьи?`)) {
+      app.removePerson(idx);
+      sel = 0;
+    }
+  }
 
   let banned = $state('');
   let message = $state('');
@@ -81,49 +96,76 @@
   <div class="columns">
     <div class="col">
       <section class="panel">
-        <h2>О вас</h2>
+        <div class="panel-head">
+          <h2>{app.profile.people.length > 1 ? 'Семья' : 'О вас'}</h2>
+          <button class="btn btn-small" type="button" onclick={addPerson} disabled={app.profile.people.length >= MAX_PEOPLE}>
+            <Icon name="plus" size={14} /> Добавить человека
+          </button>
+        </div>
+        {#if app.profile.people.length > 1}
+          <div class="people" role="group" aria-label="Чьи данные показать">
+            {#each app.household.members as m, i (m.person.id)}
+              <button class="chip person" type="button" aria-pressed={i === idx} onclick={() => (sel = i)}>
+                {m.person.name}
+                <span class="muted">{fmtInt(m.targets.kcal)}</span>
+              </button>
+            {/each}
+          </div>
+        {:else}
+          <p class="muted small">Готовите на семью? Добавьте людей: у каждого будет своя норма, меню общее, а покупки посчитаются на всех.</p>
+        {/if}
+
+        <label class="field">
+          <span>Имя</span>
+          <input type="text" maxlength="40" bind:value={app.profile.people[idx].name} />
+        </label>
         <div class="grid2">
           <label class="field">
             <span>Пол</span>
-            <select bind:value={app.profile.sex}>
+            <select bind:value={app.profile.people[idx].sex}>
               <option value="female">Женский</option>
               <option value="male">Мужской</option>
             </select>
           </label>
           <label class="field">
             <span>Возраст, лет</span>
-            <input type="number" min="10" max="100" bind:value={app.profile.age} />
+            <input type="number" min="10" max="100" bind:value={app.profile.people[idx].age} />
           </label>
           <label class="field">
             <span>Рост, см</span>
-            <input type="number" min="100" max="230" bind:value={app.profile.heightCm} />
+            <input type="number" min="100" max="230" bind:value={app.profile.people[idx].heightCm} />
           </label>
           <label class="field">
             <span>Вес, кг</span>
-            <input type="number" min="30" max="300" step="0.5" bind:value={app.profile.weightKg} />
+            <input type="number" min="30" max="300" step="0.5" bind:value={app.profile.people[idx].weightKg} />
           </label>
         </div>
         <label class="field">
           <span>Активность</span>
-          <select bind:value={app.profile.activity}>
+          <select bind:value={app.profile.people[idx].activity}>
             {#each activities as a}<option value={a}>{ACTIVITY_LABEL[a]}</option>{/each}
           </select>
         </label>
         <label class="field">
           <span>Цель</span>
-          <select bind:value={app.profile.goal}>
+          <select bind:value={app.profile.people[idx].goal}>
             {#each goals as g}<option value={g}>{GOAL_LABEL[g]}</option>{/each}
           </select>
         </label>
         <label class="field">
           <span>Свои калории в день</span>
-          <input type="number" min="0" step="10" placeholder={`Рассчитано: ${fmtInt(t.kcal)}`} bind:value={app.profile.kcalOverride} />
+          <input type="number" min="0" step="10" placeholder={`Рассчитано: ${fmtInt(t.kcal)}`} bind:value={app.profile.people[idx].kcalOverride} />
           <span class="hint">Оставьте пустым, чтобы использовать расчёт.</span>
         </label>
+        {#if idx > 0}
+          <button class="btn btn-quiet btn-small remove" type="button" onclick={removePerson}>
+            <Icon name="trash" size={14} /> Убрать из семьи
+          </button>
+        {/if}
       </section>
 
       <section class="panel result" aria-live="polite">
-        <h2>Ваша норма</h2>
+        <h2>{app.profile.people.length > 1 ? `Норма: ${member.person.name}` : 'Ваша норма'}</h2>
         <p class="big"><strong>{fmtInt(t.kcal)}</strong> ккал в день</p>
         <dl>
           <div><dt>Белки</dt><dd>{t.protein} г</dd></div>
@@ -134,8 +176,30 @@
           Основной обмен {fmtInt(t.bmr)} ккал, с учётом активности {fmtInt(t.tdee)} ккал (формула Миффлина — Сан Жеора).
         </p>
         {#each t.warnings as w}<p class="notice">{w}</p>{/each}
-        {#if minor}
-          <p class="notice">Расчёт рассчитан на взрослых. Для подростков ориентируйтесь на рекомендации врача.</p>
+
+        {#if app.profile.people.length > 1}
+          <h3>Вся семья</h3>
+          <table class="family">
+            <thead>
+              <tr><th scope="col">Кто</th><th scope="col">Ккал</th><th scope="col">Б</th><th scope="col">Ж</th><th scope="col">У</th><th scope="col">Порция</th></tr>
+            </thead>
+            <tbody>
+              {#each app.household.members as m (m.person.id)}
+                <tr>
+                  <th scope="row">{m.person.name}</th>
+                  <td>{fmtInt(m.targets.kcal)}</td>
+                  <td>{m.targets.protein}</td>
+                  <td>{m.targets.fat}</td>
+                  <td>{m.targets.carbs}</td>
+                  <td>×{fmtPortions(Math.round(m.share * 100) / 100)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+          <p class="muted small">
+            Меню общее: блюда и порции подбираются под первого в списке ({app.household.members[0].person.name}),
+            остальные едят те же блюда, а размер порции меняется по их норме. Покупки и готовка считаются на всех.
+          </p>
         {/if}
       </section>
     </div>
@@ -287,6 +351,65 @@
     border: 1px solid var(--line-strong);
     border-radius: var(--r-m);
     background: var(--paper);
+  }
+
+  .panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .people {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .person {
+    gap: 0.45rem;
+    cursor: pointer;
+  }
+
+  .person[aria-pressed='true'] {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--chalk);
+  }
+
+  .person[aria-pressed='true'] .muted {
+    color: inherit;
+    opacity: 0.75;
+  }
+
+  .remove {
+    justify-self: start;
+  }
+
+  .family {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .family th,
+  .family td {
+    padding: 0.35rem 0.4rem;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+  }
+
+  .family th:first-child {
+    text-align: left;
+    font-weight: 600;
+  }
+
+  .family thead th {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--ink-soft);
   }
 
   .grid2 {

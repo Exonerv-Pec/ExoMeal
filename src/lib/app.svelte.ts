@@ -1,4 +1,4 @@
-import { calcTargets } from '../core/nutrition';
+import { calcHousehold } from '../core/nutrition';
 import {
   clonePlan,
   emptyPlan,
@@ -10,8 +10,8 @@ import {
   MIN_PORTION,
 } from '../core/planner';
 import { buildPrepList, buildShoppingList, indexRecipes } from '../core/shopping';
-import { defaultProfile, loadState, parseState, saveState, type SavedState } from '../core/storage';
-import type { Food, FoodIndex, MealType, Plan, Profile, Recipe } from '../core/types';
+import { defaultPerson, defaultProfile, loadState, parseState, saveState, type SavedState } from '../core/storage';
+import { MAX_PEOPLE, type Food, type FoodIndex, type MealType, type Plan, type Profile, type Recipe } from '../core/types';
 import { BUILTIN_RECIPES, FOODS } from '../data';
 
 export type Route = 'plan' | 'recipes' | 'shopping' | 'cook' | 'profile';
@@ -39,12 +39,17 @@ class AppState {
 
   /** Profile with numbers kept inside sane bounds, even while a field is half-typed. */
   safeProfile = $derived(parseState({ profile: $state.snapshot(this.profile) }).profile);
-  targets = $derived(calcTargets(this.safeProfile));
+  household = $derived(calcHousehold(this.safeProfile.people));
+  /** The first person's targets: the menu is fitted to them, the others scale. */
+  targets = $derived(this.household.ref);
+  /** Whose portions and totals the week shows (index into people). Not saved. */
+  viewPerson = $state(0);
+  viewMember = $derived(this.household.members[Math.min(this.viewPerson, this.household.members.length - 1)]);
   foods: FoodIndex = $derived(new Map([...FOODS, ...this.customFoods].map((f) => [f.id, f])));
   recipes = $derived([...BUILTIN_RECIPES, ...this.customRecipes]);
   recipeIndex = $derived(indexRecipes(this.recipes));
-  shopping = $derived(buildShoppingList(this.plan, this.recipeIndex, this.foods));
-  prep = $derived(buildPrepList(this.plan, this.recipeIndex));
+  shopping = $derived(buildShoppingList(this.plan, this.recipeIndex, this.foods, this.household.factor));
+  prep = $derived(buildPrepList(this.plan, this.recipeIndex, this.household.factor));
   hasPlan = $derived(this.plan.days.some((d) => Object.keys(d).length > 0));
   lockedCount = $derived(this.plan.days.reduce((n, d) => n + Object.values(d).filter((m) => m?.locked).length, 0));
   missingSlots = $derived(emptySlots(this.safeProfile, this.recipes, this.foods));
@@ -155,6 +160,26 @@ class AppState {
     for (const day of this.plan.days) {
       for (const slot of Object.keys(day) as MealType[]) if (day[slot]?.recipeId === id) delete day[slot];
     }
+  }
+
+  // --- Household ------------------------------------------------------------
+
+  /** Adds a person and returns their index, or -1 when the household is full. */
+  addPerson(): number {
+    const people = this.profile.people;
+    if (people.length >= MAX_PEOPLE) return -1;
+    let n = people.length + 1;
+    const ids = new Set(people.map((x) => x.id));
+    while (ids.has(`p${n}`)) n++;
+    people.push(defaultPerson(`p${n}`, `Человек ${people.length + 1}`));
+    return people.length - 1;
+  }
+
+  /** Removes a person. The first person stays: the menu is fitted to them. */
+  removePerson(index: number): void {
+    if (index <= 0 || index >= this.profile.people.length) return;
+    this.profile.people.splice(index, 1);
+    if (this.viewPerson >= this.profile.people.length) this.viewPerson = 0;
   }
 
   /** Hides a recipe from week generation, or brings it back. */

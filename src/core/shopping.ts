@@ -36,9 +36,10 @@ export function indexRecipes(recipes: Recipe[]): RecipeIndex {
 
 /**
  * Adds up the ingredients of every planned meal: portions / servings × amount.
- * The same product from several recipes becomes one line.
+ * The same product from several recipes becomes one line. `people` is the
+ * household multiplier (sum of portion shares; 1 for one person).
  */
-export function buildShoppingList(plan: Plan, recipes: RecipeIndex, foods: FoodIndex): ShoppingItem[] {
+export function buildShoppingList(plan: Plan, recipes: RecipeIndex, foods: FoodIndex, people = 1): ShoppingItem[] {
   const grams = new Map<string, number>();
   const usedIn = new Map<string, Set<string>>();
 
@@ -47,7 +48,7 @@ export function buildShoppingList(plan: Plan, recipes: RecipeIndex, foods: FoodI
       if (!meal) continue;
       const recipe = recipes.get(meal.recipeId);
       if (!recipe) continue;
-      const k = meal.portions / Math.max(1, recipe.servings);
+      const k = (meal.portions * people) / Math.max(1, recipe.servings);
       for (const ing of recipe.ingredients) {
         const food = foods.get(ing.food);
         if (!food) continue;
@@ -137,8 +138,10 @@ export interface PrepBatch {
 /**
  * What to cook for the week: one batch per recipe with the total number of
  * portions and the meals it is for. Batches are ordered by first use.
+ * Portions are multiplied by the household size (`people`, sum of shares)
+ * and rounded to a quarter, which is as precise as anyone cooks.
  */
-export function buildPrepList(plan: Plan, recipes: RecipeIndex): PrepBatch[] {
+export function buildPrepList(plan: Plan, recipes: RecipeIndex, people = 1): PrepBatch[] {
   const batches = new Map<string, PrepBatch>();
   plan.days.forEach((day, d) => {
     for (const slot of MEAL_ORDER) {
@@ -150,8 +153,9 @@ export function buildPrepList(plan: Plan, recipes: RecipeIndex): PrepBatch[] {
         batch = { recipe, portions: 0, uses: [] };
         batches.set(recipe.id, batch);
       }
-      batch.portions += meal.portions;
-      batch.uses.push({ day: d, slot, portions: meal.portions });
+      const portions = Math.max(0.25, Math.round(meal.portions * people * 4) / 4);
+      batch.portions += portions;
+      batch.uses.push({ day: d, slot, portions });
     }
   });
   return [...batches.values()];

@@ -88,6 +88,27 @@ describe('interface', () => {
     expect($('h1')!.textContent).toBe('Профиль');
     expect(document.body.textContent).toContain('ккал в день');
 
+    // A family: add a second person; the week shows their portions, shopping counts both.
+    expect(document.body.textContent).not.toContain('Вся семья');
+    button('Добавить человека')!.click();
+    await tick();
+    expect(document.body.textContent).toContain('Вся семья');
+    const name = $<HTMLInputElement>('input[maxlength="40"]')!;
+    expect(name.value).toBe('Человек 2');
+    name.value = 'Миша';
+    name.dispatchEvent(new Event('input'));
+    await tick();
+    expect($$('table.family tbody tr')).toHaveLength(2);
+
+    await go('plan');
+    expect(document.body.textContent).toContain('Порции и калории для:');
+    button('Миша')!.click();
+    await tick();
+    expect($('.targets')!.textContent).toContain('Миша');
+    await go('shopping');
+    expect(document.body.textContent).toContain('на 2 чел.');
+    await go('profile');
+
     // Everything is remembered.
     expect(localStorage.getItem(STORAGE_KEY)).toContain('"version":1');
   });

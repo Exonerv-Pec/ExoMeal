@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isAllowed, recipeTags } from '../src/core/diet';
-import { calcTargets, recipePerServing } from '../src/core/nutrition';
+import { calcHousehold, calcTargets, recipePerServing } from '../src/core/nutrition';
 import {
   DAYS,
   dayNutrition,
@@ -13,8 +13,8 @@ import {
 } from '../src/core/planner';
 import { makeRng } from '../src/core/rng';
 import { buildPrepList, buildShoppingList, groupShoppingList, indexRecipes, shoppingToText } from '../src/core/shopping';
-import { defaultProfile, loadState, parseState, saveState, STORAGE_KEY } from '../src/core/storage';
-import type { Food, FoodIndex, Plan, Profile, Recipe } from '../src/core/types';
+import { defaultPerson, defaultProfile, loadState, parseState, saveState, STORAGE_KEY } from '../src/core/storage';
+import type { Food, FoodIndex, Person, Plan, Profile, Recipe } from '../src/core/types';
 import { fmtIngredient, shoppingLabel, toGrams } from '../src/core/units';
 import { BUILTIN_FOOD_INDEX as foods, BUILTIN_RECIPES as recipes } from '../src/data';
 
@@ -49,7 +49,7 @@ describe('units', () => {
 
 // ---------------------------------------------------------------------------
 describe('targets', () => {
-  const base: Profile = { ...defaultProfile(), sex: 'female', age: 30, heightCm: 168, weightKg: 65, activity: 'light', goal: 'maintain' };
+  const base: Person = { ...defaultPerson(), sex: 'female', age: 30, heightCm: 168, weightKg: 65, activity: 'light', goal: 'maintain' };
 
   it('uses the Mifflin–St Jeor formula', () => {
     const t = calcTargets(base);
@@ -86,9 +86,65 @@ describe('targets', () => {
 });
 
 // ---------------------------------------------------------------------------
+describe('household', () => {
+  const adult: Person = { ...defaultPerson('a', 'Аня'), kcalOverride: 2000 };
+  const partner: Person = { ...defaultPerson('b', 'Миша'), sex: 'male', kcalOverride: 2500 };
+  const teen: Person = { ...defaultPerson('c', 'Лиза'), age: 15, kcalOverride: 1600 };
+
+  it('gives each person their own target and a portion share', () => {
+    const h = calcHousehold([adult, partner, teen]);
+    expect(h.members.map((m) => m.targets.kcal)).toEqual([2000, 2500, 1600]);
+    expect(h.members.map((m) => m.share)).toEqual([1, 1.25, 0.8]);
+    expect(h.factor).toBeCloseTo(3.05);
+    expect(h.ref.kcal).toBe(2000);
+  });
+
+  it('keeps everyone above the safety floor', () => {
+    const h = calcHousehold([adult, { ...partner, kcalOverride: 900 }]);
+    expect(h.members[1].targets.kcal).toBe(1500);
+  });
+
+  it('is a plain single person when alone', () => {
+    const h = calcHousehold([adult]);
+    expect(h.factor).toBe(1);
+    expect(h.members[0].share).toBe(1);
+  });
+
+  it('puts every person on their own calorie target with the shared menu', () => {
+    const h = calcHousehold([adult, partner, teen]);
+    const profile: Profile = { ...defaultProfile(), people: [adult, partner, teen] };
+    const plan = generatePlan(profile, h.ref, recipes, foods, { seed: 11 });
+    const ctx = makeCtx(profile, h.ref, recipes, foods);
+    for (const m of h.members) {
+      for (const day of plan.days) {
+        const kcal = dayNutrition(ctx, day).kcal * m.share;
+        expect(Math.abs(kcal - m.targets.kcal) / m.targets.kcal, m.person.name).toBeLessThan(0.12);
+      }
+    }
+  });
+
+  it('buys and cooks for the whole household', () => {
+    const profile: Profile = { ...defaultProfile(), people: [adult, partner] };
+    const h = calcHousehold(profile.people);
+    const plan = generatePlan(profile, h.ref, recipes, foods, { seed: 4 });
+    const idx = indexRecipes(recipes);
+    const one = buildShoppingList(plan, idx, foods);
+    const both = buildShoppingList(plan, idx, foods, h.factor);
+    expect(both.map((i) => i.foodId)).toEqual(one.map((i) => i.foodId));
+    for (let i = 0; i < one.length; i++) expect(both[i].grams).toBeCloseTo(one[i].grams * 2.25);
+
+    const prepOne = buildPrepList(plan, idx);
+    const prepBoth = buildPrepList(plan, idx, h.factor);
+    const total = (b: ReturnType<typeof buildPrepList>) => b.reduce((s, x) => s + x.portions, 0);
+    expect(total(prepBoth)).toBeGreaterThan(total(prepOne) * 2);
+    for (const b of prepBoth) for (const u of b.uses) expect((u.portions * 4) % 1).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 describe('planner', () => {
   const profile = defaultProfile();
-  const targets = calcTargets(profile);
+  const targets = calcTargets(profile.people[0]);
   const idx = indexRecipes(recipes);
 
   it('is deterministic for a seed', () => {
@@ -141,7 +197,7 @@ describe('planner', () => {
 
   it('obeys diets and exclusions', () => {
     const vegan: Profile = { ...profile, diet: 'vegan', exclusions: ['gluten'] };
-    const plan = generatePlan(vegan, calcTargets(vegan), recipes, foods, { seed: 5 });
+    const plan = generatePlan(vegan, calcTargets(vegan.people[0]), recipes, foods, { seed: 5 });
     for (const day of plan.days) {
       for (const m of Object.values(day)) {
         const tags = recipeTags(idx.get(m!.recipeId)!, foods);
@@ -153,7 +209,7 @@ describe('planner', () => {
 
   it('respects excluded foods and the time limit', () => {
     const p: Profile = { ...profile, excludedFoods: ['chicken-breast', 'salmon'], maxTime: 30 };
-    const plan = generatePlan(p, calcTargets(p), recipes, foods, { seed: 9 });
+    const plan = generatePlan(p, calcTargets(p.people[0]), recipes, foods, { seed: 9 });
     for (const day of plan.days) {
       for (const m of Object.values(day)) {
         const r = idx.get(m!.recipeId)!;
@@ -167,28 +223,28 @@ describe('planner', () => {
     const base = generatePlan(profile, targets, recipes, foods, { seed: 5 });
     const used = new Set(base.days.flatMap((d) => Object.values(d).map((m) => m!.recipeId)));
     const p: Profile = { ...profile, hiddenRecipes: [...used] };
-    const plan = generatePlan(p, calcTargets(p), recipes, foods, { seed: 5 });
+    const plan = generatePlan(p, calcTargets(p.people[0]), recipes, foods, { seed: 5 });
     for (const day of plan.days) for (const m of Object.values(day)) expect(used.has(m!.recipeId)).toBe(false);
-    const again = rerollSlot(plan, 0, 'lunch', p, calcTargets(p), recipes, foods, makeRng(77));
+    const again = rerollSlot(plan, 0, 'lunch', p, calcTargets(p.people[0]), recipes, foods, makeRng(77));
     expect(used.has(again.days[0].lunch!.recipeId)).toBe(false);
   });
 
   it('still lets a hidden recipe be placed by hand', () => {
     const p: Profile = { ...profile, hiddenRecipes: ['tofu-scramble'] };
     expect(isAllowed(idx.get('tofu-scramble')!, p, foods)).toBe(false);
-    const plan = placeRecipe(emptyPlan(), 0, 'breakfast', 'tofu-scramble', p, calcTargets(p), recipes, foods);
+    const plan = placeRecipe(emptyPlan(), 0, 'breakfast', 'tofu-scramble', p, calcTargets(p.people[0]), recipes, foods);
     expect(plan.days[0].breakfast?.recipeId).toBe('tofu-scramble');
   });
 
   it('supports three meals a day', () => {
     const p: Profile = { ...profile, meals: ['breakfast', 'lunch', 'dinner'] };
-    const plan = generatePlan(p, calcTargets(p), recipes, foods, { seed: 3 });
+    const plan = generatePlan(p, calcTargets(p.people[0]), recipes, foods, { seed: 3 });
     for (const day of plan.days) expect(Object.keys(day).sort()).toEqual(['breakfast', 'dinner', 'lunch']);
   });
 
   it('cooks lunch and dinner once for two days when asked', () => {
     const p: Profile = { ...profile, cookForTwoDays: true };
-    const plan = generatePlan(p, calcTargets(p), recipes, foods, { seed: 21 });
+    const plan = generatePlan(p, calcTargets(p.people[0]), recipes, foods, { seed: 21 });
     for (const d of [1, 3, 5]) {
       expect(plan.days[d].lunch!.recipeId).toBe(plan.days[d - 1].lunch!.recipeId);
       expect(plan.days[d].dinner!.recipeId).toBe(plan.days[d - 1].dinner!.recipeId);
@@ -293,7 +349,7 @@ describe('shopping list', () => {
 
   it('works for a real generated week', () => {
     const profile = defaultProfile();
-    const plan = generatePlan(profile, calcTargets(profile), recipes, foods, { seed: 8 });
+    const plan = generatePlan(profile, calcTargets(profile.people[0]), recipes, foods, { seed: 8 });
     const list = buildShoppingList(plan, indexRecipes(recipes), foods);
     expect(list.length).toBeGreaterThan(15);
     for (const item of list) {
@@ -327,10 +383,28 @@ describe('storage', () => {
   });
 
   it('clamps unrealistic numbers', () => {
-    const s = parseState({ profile: { age: 500, weightKg: -3, heightCm: 20 } });
-    expect(s.profile.age).toBe(100);
-    expect(s.profile.weightKg).toBe(30);
-    expect(s.profile.heightCm).toBe(100);
+    const s = parseState({ profile: { people: [{ age: 500, weightKg: -3, heightCm: 20 }] } });
+    expect(s.profile.people[0].age).toBe(100);
+    expect(s.profile.people[0].weightKg).toBe(30);
+    expect(s.profile.people[0].heightCm).toBe(100);
+  });
+
+  it('turns an old single-person profile into the first person', () => {
+    const s = parseState({ profile: { sex: 'male', age: 41, heightCm: 182, weightKg: 90, goal: 'lose', kcalOverride: 2100, diet: 'vegan' } });
+    expect(s.profile.people).toHaveLength(1);
+    expect(s.profile.people[0]).toMatchObject({ name: 'Я', sex: 'male', age: 41, heightCm: 182, weightKg: 90, goal: 'lose', kcalOverride: 2100 });
+    expect(s.profile.diet).toBe('vegan');
+  });
+
+  it('keeps a household, fixes names and duplicate ids, and caps its size', () => {
+    const s = parseState({
+      profile: { people: [{ id: 'a', name: ' Аня ' }, { id: 'a', name: '' }, 'junk', ...Array.from({ length: 20 }, () => ({}))] },
+    });
+    expect(s.profile.people.length).toBe(10);
+    expect(s.profile.people[0].name).toBe('Аня');
+    expect(s.profile.people[1].name).toBe('Человек 2');
+    expect(new Set(s.profile.people.map((x) => x.id)).size).toBe(10);
+    expect(parseState({ profile: { people: [] } }).profile.people).toHaveLength(1);
   });
 
   it('round-trips through a storage object', () => {

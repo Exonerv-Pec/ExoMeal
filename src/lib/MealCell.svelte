@@ -11,7 +11,10 @@
 
   const meal = $derived(app.plan.days[day][slot]);
   const recipe = $derived(meal ? app.recipeIndex.get(meal.recipeId) : undefined);
-  const kcal = $derived(recipe && meal ? recipePerServing(recipe, app.foods).kcal * meal.portions : 0);
+  // The plan stores the first person's portions; others eat the same dish scaled.
+  const share = $derived(app.viewMember.share);
+  const portions = $derived(meal ? Math.round(meal.portions * share * 100) / 100 : 0);
+  const kcal = $derived(recipe && meal ? recipePerServing(recipe, app.foods).kcal * meal.portions * share : 0);
 </script>
 
 <div class="cell meal-{slot}" class:locked={meal?.locked}>
@@ -20,7 +23,7 @@
   {#if meal && recipe}
     <button class="title" type="button" onclick={() => (app.openRecipeId = recipe.id)}>{recipe.title}</button>
     <p class="figures">
-      <span>{fmtPortions(meal.portions)}&nbsp;порц.</span>
+      <span>{fmtPortions(portions)}&nbsp;порц.</span>
       <strong>{fmtInt(kcal)}&nbsp;ккал</strong>
     </p>
     <div class="tools">

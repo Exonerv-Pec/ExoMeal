@@ -1,4 +1,4 @@
-import type { FoodIndex, Nutrition, Profile, Recipe, Targets } from './types';
+import type { Body, FoodIndex, Nutrition, Person, Recipe, Targets } from './types';
 import { ingredientGrams } from './units';
 
 export const ZERO: Nutrition = { kcal: 0, protein: 0, fat: 0, carbs: 0 };
@@ -59,7 +59,7 @@ const FLOOR = { female: 1200, male: 1500 } as const;
  * Mifflin–St Jeor estimate. This is a rough guide for healthy adults, not
  * medical advice; the UI says so and the numbers can be overridden.
  */
-export function calcTargets(p: Profile): Targets {
+export function calcTargets(p: Body): Targets {
   const warnings: string[] = [];
   const bmr = 10 * p.weightKg + 6.25 * p.heightCm - 5 * p.age + (p.sex === 'male' ? 5 : -161);
   const tdee = bmr * ACTIVITY_FACTOR[p.activity];
@@ -91,4 +91,39 @@ export function calcTargets(p: Profile): Targets {
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
 
   return { kcal, protein, fat, carbs, bmr: Math.round(bmr), tdee: Math.round(tdee), warnings };
+}
+
+// ---------------------------------------------------------------------------
+// Household
+// ---------------------------------------------------------------------------
+
+export interface Member {
+  person: Person;
+  targets: Targets;
+  /**
+   * Size of this person's portion relative to the first person's:
+   * their calorie target divided by the first person's.
+   */
+  share: number;
+}
+
+export interface Household {
+  members: Member[];
+  /** The first person's targets: the menu and its portions are fitted to them. */
+  ref: Targets;
+  /** Sum of shares: how many "first person" portions the household eats. */
+  factor: number;
+}
+
+/**
+ * One shared menu for everyone. The plan's portions are fitted to the first
+ * person; everybody else eats the same dishes scaled by their own calories,
+ * so each person lands on their own target.
+ */
+export function calcHousehold(people: Person[]): Household {
+  if (people.length === 0) throw new Error('A household needs at least one person');
+  const all = people.map((person) => ({ person, targets: calcTargets(person) }));
+  const ref = all[0].targets;
+  const members = all.map((m) => ({ ...m, share: m.targets.kcal / ref.kcal }));
+  return { members, ref, factor: members.reduce((sum, m) => sum + m.share, 0) };
 }

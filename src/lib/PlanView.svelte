@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scale } from '../core/nutrition';
   import { dayNutrition, makeCtx, slotsOf } from '../core/planner';
   import { app } from './app.svelte';
   import { fmtInt } from './format';
@@ -7,11 +8,15 @@
 
   const slots = $derived(slotsOf(app.safeProfile));
   const ctx = $derived(makeCtx(app.safeProfile, app.targets, app.recipes, app.foods));
-  const days = $derived(app.plan.days.map((d) => dayNutrition(ctx, d)));
+  const member = $derived(app.viewMember);
+  const t = $derived(member.targets);
+  const many = $derived(app.household.members.length > 1);
+  // Day totals for the person on screen: the plan is fitted to the first person, others scale.
+  const days = $derived(app.plan.days.map((d) => scale(dayNutrition(ctx, d), member.share)));
   const rows = $derived(slots.length + 2);
 
   function progress(kcal: number): number {
-    return Math.min(100, Math.round((kcal / app.targets.kcal) * 100));
+    return Math.min(100, Math.round((kcal / t.kcal) * 100));
   }
 </script>
 
@@ -20,8 +25,8 @@
     <div>
       <h1>Неделя</h1>
       <p class="targets muted">
-        Цель на день: <strong>{fmtInt(app.targets.kcal)} ккал</strong>,
-        белки {app.targets.protein} г, жиры {app.targets.fat} г, углеводы {app.targets.carbs} г.
+        {many ? `Цель на день, ${member.person.name}:` : 'Цель на день:'} <strong>{fmtInt(t.kcal)} ккал</strong>,
+        белки {t.protein} г, жиры {t.fat} г, углеводы {t.carbs} г.
         <a href="#/profile">Изменить</a>
       </p>
     </div>
@@ -37,7 +42,19 @@
     </div>
   </div>
 
-  {#each app.targets.warnings as w}
+  {#if many}
+    <div class="people no-print" role="group" aria-label="Чьи порции показать">
+      <span class="muted">Порции и калории для:</span>
+      {#each app.household.members as m, i (m.person.id)}
+        <button class="chip" type="button" aria-pressed={member === m} onclick={() => (app.viewPerson = i)}>
+          {m.person.name}
+        </button>
+      {/each}
+      <span class="muted small">Меню общее, покупки на {app.household.members.length} чел.</span>
+    </div>
+  {/if}
+
+  {#each t.warnings as w}
     <p class="notice">{w}</p>
   {/each}
   {#if app.missingSlots.length}
@@ -52,7 +69,7 @@
       <h2>Составим меню на неделю</h2>
       <p>
         ExoMeal подберёт случайные блюда так, чтобы каждый день попадал в вашу норму калорий и белка,
-        а затем посчитает, что купить. Расчёт идёт по параметрам из профиля: сейчас там значения по умолчанию.
+        а затем посчитает, что купить. Расчёт идёт по параметрам из профиля: сейчас там значения по умолчанию. Готовите на семью? Добавьте в профиле всех, кто ест.
       </p>
       <div class="row">
         <button class="btn btn-primary" type="button" onclick={() => app.generate()}>Собрать неделю</button>
@@ -79,7 +96,7 @@
             </h2>
             <p class="kcal">
               <strong>{fmtInt(n.kcal)}</strong>
-              <span class="muted">из {fmtInt(app.targets.kcal)} ккал</span>
+              <span class="muted">из {fmtInt(t.kcal)} ккал</span>
             </p>
             <div
               class="bar"
@@ -87,7 +104,7 @@
               aria-label="Калории за день"
               aria-valuenow={Math.round(n.kcal)}
               aria-valuemin={0}
-              aria-valuemax={app.targets.kcal}
+              aria-valuemax={t.kcal}
             >
               <div style="width: {progress(n.kcal)}%"></div>
             </div>
@@ -130,6 +147,24 @@
 
   .targets strong {
     color: var(--ink);
+  }
+
+  .people {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.92rem;
+  }
+
+  .people .chip[aria-pressed='true'] {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--chalk);
+  }
+
+  .people .small {
+    font-size: 0.85rem;
   }
 
   .actions {

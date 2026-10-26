@@ -13,6 +13,7 @@
     {#if app.hasPlan}
       <p class="muted">
         Блюда недели собраны вместе: готовьте сразу на все приёмы пищи, где они нужны.
+        {#if app.household.members.length > 1}Порции посчитаны на всю семью ({app.household.members.length} чел.).{/if}
         Сделано {doneCount} из {app.prep.length}.
       </p>
     {/if}
