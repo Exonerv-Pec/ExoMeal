@@ -23,6 +23,7 @@
     added = '';
   });
 
+  const hidden = $derived(recipe ? app.hiddenSet.has(recipe.id) : false);
   const per = $derived(recipe ? recipePerServing(recipe, app.foods) : null);
   const tags = $derived(recipe ? recipeTags(recipe, app.foods) : []);
   const k = $derived(recipe ? servings / recipe.servings : 1);
@@ -113,6 +114,17 @@
         {#if added}
           <p class="added" role="status">{added} Порция подобрана под норму дня: {fmtPortions(app.plan.days[day][slot]?.portions ?? 1)}.</p>
         {/if}
+      </div>
+
+      <div class="visibility no-print">
+        <button class="btn" type="button" aria-pressed={hidden} onclick={() => recipe && app.toggleHidden(recipe.id)}>
+          {hidden ? 'Вернуть в меню' : 'Скрыть из меню'}
+        </button>
+        <p class="muted small">
+          {hidden
+            ? 'Рецепт скрыт: при составлении недели он не попадёт в план. Добавить его вручную всё равно можно.'
+            : 'Скрытый рецепт не попадает в случайный план, но остаётся в списке.'}
+        </p>
       </div>
 
       {#if recipe.custom}
@@ -257,6 +269,18 @@
   .owner {
     display: flex;
     gap: 0.5rem;
+  }
+
+  .visibility {
+    display: grid;
+    justify-items: start;
+    gap: 0.4rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .small {
+    font-size: 0.86rem;
   }
 
   @media (max-width: 520px) {

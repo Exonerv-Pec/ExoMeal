@@ -8,14 +8,15 @@
 - Shopping list with merged amounts, shop aisles, a "check at home" group, copy, download, print
 - Cooking batches
 - Own recipes and own foods, JSON backup and restore
-- 61 recipes and 94 foods
+- 161 recipes and 135 foods
+- Hide a recipe so the week generator never picks it
 - GitHub Actions: check, test, build, deploy to GitHub Pages
 
 ## Next
 
 - **Pantry.** Mark what is already at home; subtract it from the shopping list.
 - **Pack sizes.** Round amounts up to what shops sell (a 400 g can, a 10-egg tray) and show what is left over.
-- **More recipes.** Target 150 or more, with more vegan and gluten-free choices.
+- **More recipes.** Keep growing the collection, especially vegan, gluten-free and quick (under 20 minutes) dishes.
 - **Installable and offline.** Web app manifest and service worker, so it works from the home screen without a connection.
 - **Smarter batching.** Plan leftovers across days, reuse a cooked base (rice, chicken) in two different dishes, and a combined cooking order for a Sunday session.
 - **Weekly history.** Keep past weeks and repeat a good one.

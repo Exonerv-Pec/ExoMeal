@@ -21,6 +21,7 @@
   // svelte-ignore state_referenced_locally
   let onlyMine = $state(pick !== null);
   let onlyCustom = $state(false);
+  let onlyHidden = $state(false);
 
   const tagOptions: DerivedTag[] = ['vegan', 'vegetarian', 'gluten-free', 'dairy-free'];
 
@@ -40,6 +41,7 @@
       if (maxTime > 0 && recipe.time > maxTime) return false;
       if (onlyMine && !isAllowed(recipe, app.safeProfile, app.foods)) return false;
       if (onlyCustom && !recipe.custom) return false;
+      if (onlyHidden && !app.hiddenSet.has(recipe.id)) return false;
       return true;
     }),
   );
@@ -93,6 +95,12 @@
       <input type="checkbox" bind:checked={onlyMine} />
       Подходят мне по профилю
     </label>
+    {#if app.hiddenSet.size}
+      <label class="chip">
+        <input type="checkbox" bind:checked={onlyHidden} />
+        Скрытые ({app.hiddenSet.size})
+      </label>
+    {/if}
     {#if app.customRecipes.length}
       <label class="chip">
         <input type="checkbox" bind:checked={onlyCustom} />
@@ -107,7 +115,7 @@
     <ul class="grid">
       {#each shown as { recipe, tags: t, per } (recipe.id)}
         <li>
-          <button type="button" class="card" onclick={() => choose(recipe)}>
+          <button type="button" class="card" class:hidden={app.hiddenSet.has(recipe.id)} onclick={() => choose(recipe)}>
             <span class="dots" aria-hidden="true">
               {#each recipe.meals as m}<i class="meal-{m}"></i>{/each}
             </span>
@@ -118,6 +126,7 @@
               <span>{fmtMinutes(recipe.time)}</span>
             </span>
             <span class="tags">
+              {#if app.hiddenSet.has(recipe.id)}<span class="tag">Скрыт из меню</span>{/if}
               {#if recipe.custom}<span class="tag">Мой рецепт</span>{/if}
               {#each t as tag}<span class="tag">{TAG_LABEL[tag]}</span>{/each}
             </span>
@@ -185,6 +194,11 @@
 
   .card:hover {
     border-color: var(--ink);
+  }
+
+  .card.hidden .name,
+  .card.hidden .facts {
+    opacity: 0.55;
   }
 
   .dots {

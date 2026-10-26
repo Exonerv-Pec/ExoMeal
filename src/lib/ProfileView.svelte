@@ -30,6 +30,13 @@
     message = '';
   }
 
+  const hiddenRecipes = $derived(
+    app.safeProfile.hiddenRecipes.flatMap((id) => {
+      const r = app.recipeIndex.get(id);
+      return r ? [r] : [];
+    }),
+  );
+
   function unban(id: string) {
     app.profile.excludedFoods = app.profile.excludedFoods.filter((x) => x !== id);
   }
@@ -178,6 +185,24 @@
                 </li>
               {/each}
             </ul>
+          {/if}
+        </div>
+
+        <div class="field">
+          <span class="label">Скрытые рецепты</span>
+          {#if hiddenRecipes.length}
+            <ul class="banned">
+              {#each hiddenRecipes as r (r.id)}
+                <li>
+                  {r.title}
+                  <button class="btn btn-quiet btn-icon" type="button" aria-label="Вернуть в меню: {r.title}" onclick={() => app.toggleHidden(r.id)}>
+                    <Icon name="close" size={14} />
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="muted small">Нет скрытых рецептов. Скрыть рецепт можно в его карточке.</p>
           {/if}
         </div>
 
@@ -334,6 +359,10 @@
 
   .small {
     font-size: 0.86rem;
+  }
+
+  .label {
+    font-weight: 600;
   }
 
   .add {

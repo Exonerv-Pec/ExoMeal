@@ -14,6 +14,7 @@ A weekly meal planner that works offline. Press one button and get a week of hea
 - **Respects your diet.** Vegan, vegetarian, pescatarian, plus exclusions (gluten, dairy, eggs, nuts, peanuts, fish, shellfish, soy, sesame), foods you dislike, and a time limit per dish. Diet labels on recipes are computed from the ingredients, so they cannot drift out of date.
 - **Shopping list for the week.** Amounts from all meals are added up (300 g + 200 g onion becomes one line), shown the way people buy them (pieces, kilograms), grouped by shop aisle. Oils and spices go to a separate "check at home" group. Copy it, download it, print it, tick items off.
 - **Cooking batches.** The week's dishes grouped by recipe with the total number of portions and the meals they are for. Optionally cook lunch and dinner once for two days.
+- **Hide what you do not like.** Hide a recipe in its card and it will not come up in a random week. It stays in the list, and you can still add it by hand or bring it back from the profile.
 - **Your own recipes and foods.** Add a recipe, add a product with nutrition per 100 g.
 - **Private.** No account, no server, no tracking. The page forbids network requests (Content Security Policy). Everything lives in your browser; export a JSON backup to move it.
 

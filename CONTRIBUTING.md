@@ -21,7 +21,7 @@ Run `npm run check && npm test` before opening a pull request. CI runs the same.
 
 ## Adding a recipe
 
-Recipes live in `src/data/recipes/` (`breakfasts.ts`, `mains.ts`, `snacks.ts`). Each one is a call like:
+Recipes live in `src/data/recipes/` (files by type of dish, such as `breakfasts-more.ts`, `soups-salads.ts`, `fish-veg.ts`, `snacks-more.ts`). Each one is a call like:
 
 ```ts
 r('oatmeal-banana', 'Овсянка с бананом и орехами', ['breakfast'], 1, 10,

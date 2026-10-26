@@ -32,7 +32,7 @@ describe('built-in food database', () => {
 describe('built-in recipes', () => {
   it('has unique ids and enough recipes', () => {
     expect(new Set(recipes.map((r) => r.id)).size).toBe(recipes.length);
-    expect(recipes.length).toBeGreaterThanOrEqual(50);
+    expect(recipes.length).toBeGreaterThanOrEqual(150);
   });
 
   it('only uses known foods and units that can be converted', () => {

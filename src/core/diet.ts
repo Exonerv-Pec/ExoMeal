@@ -46,6 +46,7 @@ export function recipeTags(recipe: Recipe, foods: FoodIndex): DerivedTag[] {
 
 /** True when the profile lets this recipe into the plan. */
 export function isAllowed(recipe: Recipe, profile: Profile, foods: FoodIndex): boolean {
+  if (profile.hiddenRecipes?.includes(recipe.id)) return false;
   const flags = recipeFlags(recipe, foods);
   for (const f of DIET_BLOCKS[profile.diet]) if (flags.has(f)) return false;
   for (const e of profile.exclusions) if (flags.has(EXCLUSION_FLAG[e])) return false;

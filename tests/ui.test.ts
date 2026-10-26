@@ -70,7 +70,21 @@ describe('interface', () => {
     expect($('dialog[open]')).not.toBeNull();
     expect($('dialog[open]')!.textContent).toContain('Добавить в неделю');
 
+    // Hide the recipe that is open: it is marked, listed in the profile, and can come back.
+    button('Скрыть из меню')!.click();
+    await tick();
+    expect(button('Вернуть в меню')).toBeDefined();
+    $<HTMLButtonElement>('dialog[open] button[aria-label]')?.click();
+    await tick();
+    expect($$('.card.hidden')).toHaveLength(1);
+
     await go('profile');
+    expect(document.body.textContent).toContain('Скрытые рецепты');
+    expect($$('button[aria-label^="Вернуть в меню:"]')).toHaveLength(1);
+    $<HTMLButtonElement>('button[aria-label^="Вернуть в меню:"]')!.click();
+    await tick();
+    expect(document.body.textContent).toContain('Нет скрытых рецептов');
+
     expect($('h1')!.textContent).toBe('Профиль');
     expect(document.body.textContent).toContain('ккал в день');
 

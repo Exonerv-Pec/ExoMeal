@@ -163,6 +163,23 @@ describe('planner', () => {
     }
   });
 
+  it('never picks a hidden recipe, for the week or for a reroll', () => {
+    const base = generatePlan(profile, targets, recipes, foods, { seed: 5 });
+    const used = new Set(base.days.flatMap((d) => Object.values(d).map((m) => m!.recipeId)));
+    const p: Profile = { ...profile, hiddenRecipes: [...used] };
+    const plan = generatePlan(p, calcTargets(p), recipes, foods, { seed: 5 });
+    for (const day of plan.days) for (const m of Object.values(day)) expect(used.has(m!.recipeId)).toBe(false);
+    const again = rerollSlot(plan, 0, 'lunch', p, calcTargets(p), recipes, foods, makeRng(77));
+    expect(used.has(again.days[0].lunch!.recipeId)).toBe(false);
+  });
+
+  it('still lets a hidden recipe be placed by hand', () => {
+    const p: Profile = { ...profile, hiddenRecipes: ['tofu-scramble'] };
+    expect(isAllowed(idx.get('tofu-scramble')!, p, foods)).toBe(false);
+    const plan = placeRecipe(emptyPlan(), 0, 'breakfast', 'tofu-scramble', p, calcTargets(p), recipes, foods);
+    expect(plan.days[0].breakfast?.recipeId).toBe('tofu-scramble');
+  });
+
   it('supports three meals a day', () => {
     const p: Profile = { ...profile, meals: ['breakfast', 'lunch', 'dinner'] };
     const plan = generatePlan(p, calcTargets(p), recipes, foods, { seed: 3 });
@@ -301,6 +318,12 @@ describe('storage', () => {
     expect(s.profile.meals.length).toBeGreaterThan(0);
     expect(s.plan.days).toHaveLength(7);
     expect(parseState(null).customRecipes).toEqual([]);
+  });
+
+  it('keeps hidden recipes and repairs a bad list', () => {
+    expect(parseState(null).profile.hiddenRecipes).toEqual([]);
+    expect(parseState({ profile: { hiddenRecipes: 'x' } }).profile.hiddenRecipes).toEqual([]);
+    expect(parseState({ profile: { hiddenRecipes: ['a', 3, 'b'] } }).profile.hiddenRecipes).toEqual(['a', 'b']);
   });
 
   it('clamps unrealistic numbers', () => {

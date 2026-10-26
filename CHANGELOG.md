@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Hide a recipe from the menu: it never comes up when a week is built or a meal is swapped, stays in the list (marked, with a filter) and can still be added by hand. Hidden recipes are listed in the profile with a button to bring them back
+- 100 new recipes (161 in total): soups, bowls and salads, poultry, beef and pork, fish and seafood, vegetarian and vegan dishes, breakfasts and snacks
+- 41 new foods (135 in total)
+
 ## 0.1.0
 
 First public version.

@@ -96,6 +96,8 @@ export interface Profile {
   diet: Diet;
   exclusions: Exclusion[];
   excludedFoods: string[];
+  /** Recipes the person hid: they never come up when a week is built. */
+  hiddenRecipes: string[];
   meals: MealType[];
   /** Skip recipes that take longer, in minutes. null = no limit. */
   maxTime: number | null;

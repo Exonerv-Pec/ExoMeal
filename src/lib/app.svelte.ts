@@ -48,6 +48,7 @@ class AppState {
   hasPlan = $derived(this.plan.days.some((d) => Object.keys(d).length > 0));
   lockedCount = $derived(this.plan.days.reduce((n, d) => n + Object.values(d).filter((m) => m?.locked).length, 0));
   missingSlots = $derived(emptySlots(this.safeProfile, this.recipes, this.foods));
+  hiddenSet = $derived(new Set(this.safeProfile.hiddenRecipes));
 
   constructor() {
     if (typeof localStorage === 'undefined') return;
@@ -150,9 +151,18 @@ class AppState {
 
   deleteRecipe(id: string): void {
     this.customRecipes = this.customRecipes.filter((r) => r.id !== id);
+    this.profile.hiddenRecipes = this.profile.hiddenRecipes.filter((x) => x !== id);
     for (const day of this.plan.days) {
       for (const slot of Object.keys(day) as MealType[]) if (day[slot]?.recipeId === id) delete day[slot];
     }
+  }
+
+  /** Hides a recipe from week generation, or brings it back. */
+  toggleHidden(id: string): void {
+    const list = this.profile.hiddenRecipes;
+    const i = list.indexOf(id);
+    if (i >= 0) list.splice(i, 1);
+    else list.push(id);
   }
 
   addFood(food: Food): void {
