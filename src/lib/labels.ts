@@ -1,5 +1,5 @@
 import type { DerivedTag } from '../core/diet';
-import type { Activity, Category, Diet, Exclusion, Goal, MealType, Unit } from '../core/types';
+import type { Activity, Category, Diet, Exclusion, Goal, MealType, Micro, Unit } from '../core/types';
 
 export const MEAL_LABEL: Record<MealType, string> = {
   breakfast: 'Завтрак',
@@ -72,3 +72,37 @@ export const UNIT_NAME: Record<Unit, string> = {
   tbsp: 'ст. л.',
   tsp: 'ч. л.',
 };
+
+export const MICRO_LABEL: Record<Micro, string> = {
+  fiber: 'Клетчатка',
+  vitC: 'Витамин C',
+  vitA: 'Витамин A',
+  vitD: 'Витамин D',
+  b12: 'Витамин B12',
+  folate: 'Фолаты (B9)',
+  calcium: 'Кальций',
+  iron: 'Железо',
+  magnesium: 'Магний',
+  potassium: 'Калий',
+  zinc: 'Цинк',
+};
+
+export const MICRO_UNIT: Record<Micro, string> = {
+  fiber: 'г',
+  vitC: 'мг',
+  vitA: 'мкг',
+  vitD: 'мкг',
+  b12: 'мкг',
+  folate: 'мкг',
+  calcium: 'мг',
+  iron: 'мг',
+  magnesium: 'мг',
+  potassium: 'мг',
+  zinc: 'мг',
+};
+
+export const MACRO_PRESET_LABEL = {
+  standard: 'Стандартное: белок по весу, жиры 30%',
+  mentzer: 'По Ментцеру: углеводы 60%, белки 25%, жиры 15%',
+  custom: 'Своё',
+} as const;

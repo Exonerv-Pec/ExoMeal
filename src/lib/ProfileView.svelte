@@ -1,9 +1,12 @@
 <script lang="ts">
-  import { MAX_PEOPLE, MEAL_ORDER, type Activity, type Diet, type Exclusion, type Goal } from '../core/types';
+  import { microNorms } from '../core/micro';
+  import { MACRO_LIMITS } from '../core/nutrition';
+  import { MAX_PEOPLE, MEAL_ORDER, MICRO_KEYS, type Activity, type Diet, type Exclusion, type Goal, type MacroSplit } from '../core/types';
+  import { fmtNum } from '../core/units';
   import { app } from './app.svelte';
   import { fmtInt, fmtPortions } from './format';
   import Icon from './Icon.svelte';
-  import { ACTIVITY_LABEL, DIET_LABEL, EXCLUSION_LABEL, GOAL_LABEL, MEAL_LABEL } from './labels';
+  import { ACTIVITY_LABEL, DIET_LABEL, EXCLUSION_LABEL, GOAL_LABEL, MACRO_PRESET_LABEL, MEAL_LABEL, MICRO_LABEL, MICRO_UNIT } from './labels';
 
   const activities = Object.keys(ACTIVITY_LABEL) as Activity[];
   const goals = Object.keys(GOAL_LABEL) as Goal[];
@@ -14,6 +17,8 @@
   const idx = $derived(Math.min(sel, app.profile.people.length - 1));
   const member = $derived(app.household.members[Math.min(idx, app.household.members.length - 1)]);
   const t = $derived(member.targets);
+  const norms = $derived(microNorms(member.person, t.kcal));
+  const presets = Object.keys(MACRO_PRESET_LABEL) as MacroSplit['preset'][];
 
   function addPerson() {
     const i = app.addPerson();
@@ -157,6 +162,32 @@
           <input type="number" min="0" step="10" placeholder={`Рассчитано: ${fmtInt(t.kcal)}`} bind:value={app.profile.people[idx].kcalOverride} />
           <span class="hint">Оставьте пустым, чтобы использовать расчёт.</span>
         </label>
+        <label class="field">
+          <span>Белки, жиры, углеводы</span>
+          <select bind:value={app.profile.people[idx].macros.preset}>
+            {#each presets as m}<option value={m}>{MACRO_PRESET_LABEL[m]}</option>{/each}
+          </select>
+        </label>
+        {#if app.profile.people[idx].macros.preset === 'custom'}
+          <div class="grid3">
+            <label class="field">
+              <span>Белки, %</span>
+              <input type="number" min={MACRO_LIMITS.protein[0]} max={MACRO_LIMITS.protein[1]} bind:value={app.profile.people[idx].macros.protein} />
+            </label>
+            <label class="field">
+              <span>Жиры, %</span>
+              <input type="number" min={MACRO_LIMITS.fat[0]} max={MACRO_LIMITS.fat[1]} bind:value={app.profile.people[idx].macros.fat} />
+            </label>
+            <div class="field">
+              <span>Углеводы, %</span>
+              <output class="carbs">{t.split.carbs}</output>
+            </div>
+          </div>
+          <span class="hint">
+            Белки {MACRO_LIMITS.protein[0]}–{MACRO_LIMITS.protein[1]}%, жиры {MACRO_LIMITS.fat[0]}–{MACRO_LIMITS.fat[1]}%,
+            углеводы получают остаток.
+          </span>
+        {/if}
         {#if idx > 0}
           <button class="btn btn-quiet btn-small remove" type="button" onclick={removePerson}>
             <Icon name="trash" size={14} /> Убрать из семьи
@@ -172,9 +203,26 @@
           <div><dt>Жиры</dt><dd>{t.fat} г</dd></div>
           <div><dt>Углеводы</dt><dd>{t.carbs} г</dd></div>
         </dl>
+        <p class="split muted small">
+          Белки {t.split.protein}% · жиры {t.split.fat}% · углеводы {t.split.carbs}% калорий
+        </p>
+        {#if t.split.fat < 20}
+          <p class="muted small">Жиров меньше 20% калорий: это ниже, чем обычно советуют ВОЗ и EFSA (20–35%).</p>
+        {/if}
         <p class="muted small">
           Основной обмен {fmtInt(t.bmr)} ккал, с учётом активности {fmtInt(t.tdee)} ккал (формула Миффлина — Сан Жеора).
         </p>
+        <details class="norms">
+          <summary>Витамины и минералы в день</summary>
+          <table>
+            <tbody>
+              {#each MICRO_KEYS as k (k)}
+                <tr><th scope="row">{MICRO_LABEL[k]}</th><td>{fmtNum(norms[k], 1)} {MICRO_UNIT[k]}</td></tr>
+              {/each}
+            </tbody>
+          </table>
+          <p class="muted small">Справочные нормы Национальных академий США по полу и возрасту; клетчатка 14 г на 1000 ккал.</p>
+        </details>
         {#each t.warnings as w}<p class="notice">{w}</p>{/each}
 
         {#if app.profile.people.length > 1}
@@ -410,6 +458,44 @@
     font-size: 0.78rem;
     font-weight: 600;
     color: var(--ink-soft);
+  }
+
+  .grid3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.7rem;
+  }
+
+  .carbs {
+    display: flex;
+    align-items: center;
+    min-height: 2.6rem;
+    font-weight: 650;
+  }
+
+  .norms summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .norms table {
+    width: 100%;
+    margin: 0.5rem 0;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .norms th,
+  .norms td {
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    font-weight: 400;
+  }
+
+  .norms td {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
   }
 
   .grid2 {

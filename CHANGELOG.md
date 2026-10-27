@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Vitamins and minerals: fibre, vitamins C, A, D, B12, folate, calcium, iron, magnesium, potassium and zinc for every food; daily needs per person by sex and age (US National Academies DRIs); the generator tunes the week to cover everyone's weekly needs and the week page shows the coverage. Vitamin D is shown but not chased, since it comes mostly from sunlight
+- Macro split per person: standard, Mentzer (60 % carbohydrates, 25 % protein, 15 % fat) or custom percentages within safe limits
+- Goals: losing weight takes 500 kcal off the estimate, gaining adds 200; the safety floor still applies
+- Protein and vegetables in breakfast, lunch and dinner: the generator prefers such dishes; recipe cards show "has protein" and "has vegetables"; a filter in the recipe list
+- A short local search polishes every generated week
+- "Simple rules" panel: protein and vegetables, eat slowly, water, movement, sleep, 80/20
+- 20 classic home dishes of Russian, French, British, Italian and Spanish cooking, written in our own words (181 recipes in total)
 - Household: add up to 10 people, each with their own calorie and macro target. One shared menu; each person's portions are scaled to their target, the week shows portions and totals per person, and the shopping list and cooking batches cover everyone. An existing profile becomes the first person
 - Hide a recipe from the menu: it never comes up when a week is built or a meal is swapped, stays in the list (marked, with a filter) and can still be added by hand. Hidden recipes are listed in the profile with a button to bring them back
 - 100 new recipes (161 in total): soups, bowls and salads, poultry, beef and pork, fish and seafood, vegetarian and vegan dishes, breakfasts and snacks

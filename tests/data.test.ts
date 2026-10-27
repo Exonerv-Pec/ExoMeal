@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { isAllowed, recipeTags } from '../src/core/diet';
+import { MEAL_VEG_MIN, recipeMicro } from '../src/core/micro';
 import { recipePerServing } from '../src/core/nutrition';
 import { defaultProfile } from '../src/core/storage';
-import { MEAL_ORDER, type Diet, type Exclusion, type MealType } from '../src/core/types';
+import { MEAL_ORDER, MICRO_KEYS, type Diet, type Exclusion, type MealType } from '../src/core/types';
 import { toGrams } from '../src/core/units';
 import { BUILTIN_FOOD_INDEX as foods, BUILTIN_RECIPES as recipes, FOODS } from '../src/data';
 
@@ -22,6 +23,22 @@ describe('built-in food database', () => {
       if (Math.abs(est - f.kcal) > Math.max(f.kcal * 0.2, 15)) off.push(`${f.id}: ${f.kcal} vs ${est.toFixed(0)}`);
     }
     expect(off).toEqual([]);
+  });
+
+  it('has vitamin and mineral data for every food', () => {
+    for (const f of FOODS) {
+      expect(f.micro, f.id).toBeDefined();
+      for (const k of MICRO_KEYS) {
+        const v = f.micro![k];
+        expect(typeof v === 'number' && v >= 0, `${f.id}.${k}`).toBe(true);
+      }
+    }
+  });
+
+  it('marks vegetables only among produce and canned goods, and enough of them', () => {
+    const veg = FOODS.filter((f) => f.veg);
+    for (const f of veg) expect(['produce', 'pantry'], f.id).toContain(f.category);
+    expect(veg.length).toBeGreaterThanOrEqual(25);
   });
 
   it('gives every food with a piece shop mode a weight per piece', () => {
@@ -64,6 +81,15 @@ describe('built-in recipes', () => {
       if (!fits) bad.push(`${r.id} (${r.meals.join('/')}): ${Math.round(kcal)} kcal`);
     }
     expect(bad).toEqual([]);
+  });
+
+  it('has protein and vegetables in most main dishes', () => {
+    const main = recipes.filter((r) => r.meals.includes('lunch') || r.meals.includes('dinner'));
+    const balanced = main.filter((r) => {
+      const per = recipePerServing(r, foods);
+      return per.protein >= 15 && recipeMicro(r, foods).vegGrams >= MEAL_VEG_MIN;
+    });
+    expect(balanced.length / main.length).toBeGreaterThan(0.6);
   });
 
   it('derives diet tags from ingredients', () => {

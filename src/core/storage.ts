@@ -23,6 +23,7 @@ export function defaultPerson(id = 'p1', name = 'Я'): Person {
     activity: 'light',
     goal: 'maintain',
     kcalOverride: null,
+    macros: { preset: 'standard', protein: 25, fat: 25 },
   };
 }
 
@@ -58,6 +59,15 @@ export function parseState(raw: unknown): SavedState {
   const list = <T extends string>(v: unknown, all: readonly T[]): T[] =>
     Array.isArray(v) ? v.filter((x): x is T => typeof x === 'string' && (all as readonly string[]).includes(x)) : [];
 
+  const macros = (v: unknown, d: Person['macros']): Person['macros'] => {
+    const m = isObject(v) ? v : {};
+    return {
+      preset: oneOf(m.preset, ['standard', 'mentzer', 'custom'] as const, d.preset),
+      protein: num(m.protein, d.protein, 0, 100),
+      fat: num(m.fat, d.fat, 0, 100),
+    };
+  };
+
   const person = (raw: Record<string, unknown>, i: number): Person => {
     const d = defaultPerson();
     const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, 40) : '';
@@ -71,6 +81,7 @@ export function parseState(raw: unknown): SavedState {
       activity: oneOf(raw.activity, ['sedentary', 'light', 'moderate', 'high', 'athlete'] as const, d.activity),
       goal: oneOf(raw.goal, ['lose', 'maintain', 'gain'] as const, d.goal),
       kcalOverride: typeof raw.kcalOverride === 'number' && raw.kcalOverride > 0 ? raw.kcalOverride : null,
+      macros: macros(raw.macros, d.macros),
     };
   };
 

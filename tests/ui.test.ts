@@ -107,7 +107,24 @@ describe('interface', () => {
     expect($('.targets')!.textContent).toContain('Миша');
     await go('shopping');
     expect(document.body.textContent).toContain('на 2 чел.');
+    // Vitamins and the simple rules are on the week page.
+    await go('plan');
+    expect(document.body.textContent).toContain('Витамины и минералы за неделю');
+    expect($$('.micro .bars li')).toHaveLength(11);
+    expect(document.body.textContent).toContain('Простые правила');
+
     await go('profile');
+    // Mentzer split, then a custom one.
+    const split = $$<HTMLSelectElement>('select').find((s) => [...s.options].some((o) => o.value === 'mentzer'))!;
+    split.value = 'mentzer';
+    split.dispatchEvent(new Event('change'));
+    await tick();
+    expect(document.body.textContent).toContain('Белки 25% · жиры 15% · углеводы 60%');
+    expect(document.body.textContent).toContain('ниже, чем обычно советуют');
+    split.value = 'custom';
+    split.dispatchEvent(new Event('change'));
+    await tick();
+    expect(document.body.textContent).toContain('Углеводы, %');
 
     // Everything is remembered.
     expect(localStorage.getItem(STORAGE_KEY)).toContain('"version":1');

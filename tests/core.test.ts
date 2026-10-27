@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isAllowed, recipeTags } from '../src/core/diet';
-import { calcHousehold, calcTargets, recipePerServing } from '../src/core/nutrition';
+import { BALANCED_MEALS, coverage, MEAL_PROTEIN_MIN, MEAL_VEG_MIN, microNorms, NOT_PLANNED, recipeMicro, weekMicro } from '../src/core/micro';
+import { calcHousehold, calcTargets, clampSplit, recipePerServing } from '../src/core/nutrition';
 import {
   DAYS,
   dayNutrition,
@@ -14,7 +15,7 @@ import {
 import { makeRng } from '../src/core/rng';
 import { buildPrepList, buildShoppingList, groupShoppingList, indexRecipes, shoppingToText } from '../src/core/shopping';
 import { defaultPerson, defaultProfile, loadState, parseState, saveState, STORAGE_KEY } from '../src/core/storage';
-import type { Food, FoodIndex, Person, Plan, Profile, Recipe } from '../src/core/types';
+import { MICRO_KEYS, type Food, type FoodIndex, type MealType, type Person, type Plan, type Profile, type Recipe } from '../src/core/types';
 import { fmtIngredient, shoppingLabel, toGrams } from '../src/core/units';
 import { BUILTIN_FOOD_INDEX as foods, BUILTIN_RECIPES as recipes } from '../src/data';
 
@@ -59,6 +60,29 @@ describe('targets', () => {
     expect(calcTargets({ ...base, sex: 'male' }).bmr).toBe(1389 + 166);
   });
 
+  it('takes 500 kcal off to lose weight and adds 200 to gain', () => {
+    expect(calcTargets({ ...base, goal: 'lose' }).kcal).toBe(1410);
+    expect(calcTargets({ ...base, goal: 'gain' }).kcal).toBe(2110);
+  });
+
+  it('splits calories by the chosen preset', () => {
+    const std = calcTargets(base);
+    expect(std.fat).toBe(Math.round((1910 * 0.3) / 9));
+    const m = calcTargets({ ...base, macros: { preset: 'mentzer', protein: 0, fat: 0 } });
+    expect(m.split).toEqual({ protein: 25, fat: 15, carbs: 60 });
+    expect(m.protein).toBe(Math.round((1910 * 0.25) / 4));
+    expect(m.fat).toBe(Math.round((1910 * 0.15) / 9));
+    const c = calcTargets({ ...base, macros: { preset: 'custom', protein: 30, fat: 25 } });
+    expect(c.split).toEqual({ protein: 30, fat: 25, carbs: 45 });
+    for (const t of [std, m, c]) expect(Math.abs(t.protein * 4 + t.fat * 9 + t.carbs * 4 - t.kcal)).toBeLessThan(10);
+  });
+
+  it('keeps a custom split inside safe limits', () => {
+    expect(clampSplit({ protein: 60, fat: 5 })).toEqual({ protein: 40, fat: 15, carbs: 45 });
+    expect(clampSplit({ protein: 40, fat: 45 })).toEqual({ protein: 40, fat: 40, carbs: 20 });
+    expect(clampSplit({ protein: NaN, fat: 30 })).toEqual({ protein: 10, fat: 30, carbs: 60 });
+  });
+
   it('applies the goal and keeps macros consistent with the calories', () => {
     const lose = calcTargets({ ...base, goal: 'lose' });
     expect(lose.kcal).toBeLessThan(1910);
@@ -82,6 +106,91 @@ describe('targets', () => {
     const same = calcTargets({ ...base, age: 15, goal: 'maintain' });
     expect(teen.kcal).toBe(same.kcal);
     expect(teen.warnings.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('vitamins and minerals', () => {
+  it('sets daily needs by sex and age', () => {
+    const woman = microNorms({ sex: 'female', age: 30 }, 2000);
+    const man = microNorms({ sex: 'male', age: 30 }, 2500);
+    expect(woman.iron).toBe(18);
+    expect(man.iron).toBe(8);
+    expect(microNorms({ sex: 'female', age: 55 }, 1800).iron).toBe(8);
+    expect(microNorms({ sex: 'male', age: 15 }, 2600).calcium).toBe(1300);
+    expect(woman.fiber).toBe(28);
+    expect(man.fiber).toBe(35);
+    expect(man.vitC).toBeGreaterThan(woman.vitC);
+  });
+
+  it('sums a recipe per serving and counts vegetables', () => {
+    const mini: FoodIndex = new Map([
+      ['k', { id: 'k', name: 'Капуста', category: 'produce', kcal: 25, protein: 1, fat: 0, carbs: 5, veg: true, micro: { vitC: 40, calcium: 40 } }],
+      ['x', { id: 'x', name: 'Своё', category: 'other', kcal: 100, protein: 0, fat: 0, carbs: 25 }],
+    ]);
+    const r: Recipe = { id: 'r', title: 'Т', meals: ['lunch'], servings: 2, time: 5, steps: ['.'], ingredients: [{ food: 'k', qty: 300, unit: 'g' }, { food: 'x', qty: 40, unit: 'g' }] };
+    const m = recipeMicro(r, mini);
+    expect(m.values.vitC).toBeCloseTo(60);
+    expect(m.values.calcium).toBeCloseTo(60);
+    expect(m.vegGrams).toBeCloseTo(150);
+    expect(m.incomplete).toBe(true);
+  });
+
+  it('computes weekly coverage for a person by their share', () => {
+    const idx = indexRecipes(recipes);
+    const plan = generatePlan(defaultProfile(), calcTargets(defaultPerson()), recipes, foods, { seed: 6 });
+    const { total } = weekMicro(plan, idx, foods);
+    const norms = microNorms({ sex: 'female', age: 30 }, 1910);
+    const full = coverage(total, 1, norms);
+    const half = coverage(total, 0.5, norms);
+    for (const k of MICRO_KEYS) expect(half[k]).toBeCloseTo(full[k] / 2);
+    expect(full.vitC).toBeGreaterThan(1);
+  });
+
+  it('builds weeks that cover more of the weekly needs when asked', () => {
+    const people = [defaultPerson(), { ...defaultPerson('b', 'Б'), sex: 'male' as const, age: 40 }];
+    const profile: Profile = { ...defaultProfile(), people };
+    const h = calcHousehold(people);
+    const goals = h.members.map((m) => ({ share: m.share, norms: microNorms(m.person, m.targets.kcal) }));
+    const idx = indexRecipes(recipes);
+    const gap = (plan: Plan) => {
+      const { total } = weekMicro(plan, idx, foods);
+      let s = 0;
+      for (const g of goals) {
+        const c = coverage(total, g.share, g.norms);
+        for (const k of MICRO_KEYS) if (!NOT_PLANNED.has(k)) s += (1 - Math.min(1, c[k])) ** 2;
+      }
+      return s;
+    };
+    let plain = 0;
+    let tuned = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      plain += gap(generatePlan(profile, h.ref, recipes, foods, { seed }));
+      tuned += gap(generatePlan(profile, h.ref, recipes, foods, { seed, micro: goals }));
+    }
+    expect(tuned).toBeLessThan(plain);
+  });
+
+  it('puts protein and vegetables in almost every main meal', () => {
+    const profile = defaultProfile();
+    const t = calcTargets(profile.people[0]);
+    const ctx = makeCtx(profile, t, recipes, foods);
+    const idx = indexRecipes(recipes);
+    let main = 0;
+    let ok = 0;
+    for (const seed of [1, 2, 3]) {
+      const plan = generatePlan(profile, t, recipes, foods, { seed });
+      for (const day of plan.days) {
+        for (const [slot, m] of Object.entries(day) as [MealType, { recipeId: string; portions: number }][]) {
+          if (!BALANCED_MEALS.has(slot)) continue;
+          main++;
+          const protein = ctx.per.get(m.recipeId)!.protein * m.portions;
+          const veg = recipeMicro(idx.get(m.recipeId)!, foods).vegGrams * m.portions;
+          if (protein >= MEAL_PROTEIN_MIN[slot] && veg >= MEAL_VEG_MIN) ok++;
+        }
+      }
+    }
+    expect(ok / main).toBeGreaterThan(0.9);
   });
 });
 
@@ -387,6 +496,12 @@ describe('storage', () => {
     expect(s.profile.people[0].age).toBe(100);
     expect(s.profile.people[0].weightKg).toBe(30);
     expect(s.profile.people[0].heightCm).toBe(100);
+  });
+
+  it('gives old people a standard macro split and repairs a bad one', () => {
+    expect(parseState({ profile: { people: [{ name: 'А' }] } }).profile.people[0].macros.preset).toBe('standard');
+    const s = parseState({ profile: { people: [{ macros: { preset: 'mentzer', protein: 'x', fat: 900 } }] } });
+    expect(s.profile.people[0].macros).toEqual({ preset: 'mentzer', protein: 25, fat: 100 });
   });
 
   it('turns an old single-person profile into the first person', () => {

@@ -32,6 +32,23 @@ export type Category =
   | 'spices'
   | 'other';
 
+/** Vitamins, minerals and fibre tracked per food (amounts per 100 g). */
+export const MICRO_KEYS = [
+  'fiber',
+  'vitC',
+  'vitA',
+  'vitD',
+  'b12',
+  'folate',
+  'calcium',
+  'iron',
+  'magnesium',
+  'potassium',
+  'zinc',
+] as const;
+export type Micro = (typeof MICRO_KEYS)[number];
+export type MicroValues = Record<Micro, number>;
+
 export interface Food {
   id: string;
   name: string;
@@ -50,6 +67,10 @@ export interface Food {
   /** Things most kitchens already have: shown in a separate "check at home" group. */
   staple?: boolean;
   flags?: Flag[];
+  /** A vegetable (not fruit, potato or grain): counts towards "vegetables in every meal". */
+  veg?: boolean;
+  /** Per 100 g: fibre g, vitamin C mg, A µg RAE, D µg, B12 µg, folate µg, minerals mg. */
+  micro?: Partial<MicroValues>;
   /** Added by the user. */
   custom?: boolean;
 }
@@ -84,6 +105,20 @@ export type Goal = 'lose' | 'maintain' | 'gain';
 /** Things a person may want to avoid on top of the diet. */
 export type Exclusion = 'gluten' | 'dairy' | 'egg' | 'nuts' | 'peanut' | 'fish' | 'shellfish' | 'soy' | 'sesame';
 
+/**
+ * How the calories are split between protein, fat and carbohydrates.
+ * standard: protein by body weight, fat 30 %, carbohydrates the rest.
+ * mentzer: 25 % protein, 15 % fat, 60 % carbohydrates.
+ * custom: protein and fat percentages below, carbohydrates the rest.
+ */
+export interface MacroSplit {
+  preset: 'standard' | 'mentzer' | 'custom';
+  /** Percent of calories, used by "custom". */
+  protein: number;
+  /** Percent of calories, used by "custom". */
+  fat: number;
+}
+
 /** What the calorie target is calculated from. */
 export interface Body {
   sex: Sex;
@@ -94,6 +129,7 @@ export interface Body {
   goal: Goal;
   /** Overrides the calculated calories when set. */
   kcalOverride: number | null;
+  macros: MacroSplit;
 }
 
 /** One member of the household. */
@@ -129,6 +165,8 @@ export interface Targets {
   protein: number;
   fat: number;
   carbs: number;
+  /** The split actually used, in percent of calories (adds up to 100). */
+  split: { protein: number; fat: number; carbs: number };
   bmr: number;
   tdee: number;
   warnings: string[];

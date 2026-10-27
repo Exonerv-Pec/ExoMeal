@@ -4,6 +4,7 @@ Thanks for helping. Issues and pull requests are welcome.
 
 ## Ground rules
 
+- **Inspired by, not copied from.** Cooking a classic dish you know from a cookbook or a chef is fine; write the steps in your own words with your own amounts. Do not paste text from books, sites or videos, and do not name a chef or a book as the source: that reads as their endorsement.
 - **Write it yourself.** Code, recipes and texts must be your own work or under a license compatible with AGPL-3.0. Do not copy recipe texts from cookbooks or websites; a short list of ingredients and your own wording of the steps is fine.
 - **Keep the app private.** No network requests, analytics or third-party scripts. The page ships a Content Security Policy that forbids them, and tests rely on it.
 - **Keep the core pure.** `src/core/` has no UI and no browser APIs except in `storage.ts`. New logic goes there with a test.
@@ -38,6 +39,8 @@ Arguments: id (unique, kebab-case), title, meals, servings the ingredient list m
 ## Adding or correcting a food
 
 Foods live in `src/data/foods.ts`: calories, protein, fat and carbohydrates **per 100 g**, a shop category, and optional `flags`, `density` (g per ml), `gPerPiece`. A test checks that calories agree with macros (4 / 9 / 4); keep to that when correcting values and mention your source in the pull request.
+
+Every food also needs a row in `src/data/micro.ts`: fibre, vitamins C, A, D, B12, folate, calcium, iron, magnesium, potassium and zinc per 100 g (a test fails without it). Public-domain tables such as USDA FoodData Central are a good source. Vegetables go into the `VEGETABLES` set at the end of `foods.ts`; that is what "vegetables in every meal" counts.
 
 ## Code style
 

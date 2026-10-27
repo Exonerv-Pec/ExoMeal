@@ -8,7 +8,8 @@
 - Shopping list with merged amounts, shop aisles, a "check at home" group, copy, download, print
 - Cooking batches
 - Own recipes and own foods, JSON backup and restore
-- 161 recipes and 135 foods
+- 181 recipes and 136 foods, with vitamins and minerals per food
+- Weekly vitamin and mineral coverage per person; macro split presets; protein and vegetables in main meals
 - Hide a recipe so the week generator never picks it
 - GitHub Actions: check, test, build, deploy to GitHub Pages
 

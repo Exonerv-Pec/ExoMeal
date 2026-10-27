@@ -1,3 +1,4 @@
+import { coverage, microNorms, weekMicro } from '../core/micro';
 import { calcHousehold } from '../core/nutrition';
 import {
   clonePlan,
@@ -45,6 +46,8 @@ class AppState {
   /** Whose portions and totals the week shows (index into people). Not saved. */
   viewPerson = $state(0);
   viewMember = $derived(this.household.members[Math.min(this.viewPerson, this.household.members.length - 1)]);
+  /** Everyone's daily vitamin and mineral needs, with their portion share. */
+  microGoals = $derived(this.household.members.map((m) => ({ share: m.share, norms: microNorms(m.person, m.targets.kcal) })));
   foods: FoodIndex = $derived(new Map([...FOODS, ...this.customFoods].map((f) => [f.id, f])));
   recipes = $derived([...BUILTIN_RECIPES, ...this.customRecipes]);
   recipeIndex = $derived(indexRecipes(this.recipes));
@@ -54,6 +57,11 @@ class AppState {
   lockedCount = $derived(this.plan.days.reduce((n, d) => n + Object.values(d).filter((m) => m?.locked).length, 0));
   missingSlots = $derived(emptySlots(this.safeProfile, this.recipes, this.foods));
   hiddenSet = $derived(new Set(this.safeProfile.hiddenRecipes));
+  /** Vitamins and minerals the week gives, at the first person's portions. */
+  microWeek = $derived(weekMicro(this.plan, this.recipeIndex, this.foods));
+  /** Weekly coverage for the person on screen (1 = 100 %). */
+  viewNorms = $derived(microNorms(this.viewMember.person, this.viewMember.targets.kcal));
+  viewCoverage = $derived(coverage(this.microWeek.total, this.viewMember.share, this.viewNorms));
 
   constructor() {
     if (typeof localStorage === 'undefined') return;
@@ -97,6 +105,7 @@ class AppState {
   generate(): void {
     this.plan = generatePlan(this.safeProfile, this.targets, this.recipes, this.foods, {
       base: this.hasPlan ? $state.snapshot(this.plan) as Plan : null,
+      micro: $state.snapshot(this.microGoals),
     });
     this.checked = {};
   }

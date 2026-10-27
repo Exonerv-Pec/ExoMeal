@@ -1,5 +1,6 @@
 <script lang="ts">
   import { isAllowed, recipeTags, type DerivedTag } from '../core/diet';
+  import { MEAL_VEG_MIN, recipeMicro } from '../core/micro';
   import { recipePerServing } from '../core/nutrition';
   import type { MealType, Recipe } from '../core/types';
   import { MEAL_ORDER } from '../core/types';
@@ -22,6 +23,7 @@
   let onlyMine = $state(pick !== null);
   let onlyCustom = $state(false);
   let onlyHidden = $state(false);
+  let onlyBalanced = $state(false);
 
   const tagOptions: DerivedTag[] = ['vegan', 'vegetarian', 'gluten-free', 'dairy-free'];
 
@@ -30,11 +32,12 @@
       recipe: r,
       tags: recipeTags(r, app.foods),
       per: recipePerServing(r, app.foods),
+      veg: recipeMicro(r, app.foods).vegGrams,
     })),
   );
 
   const shown = $derived(
-    rows.filter(({ recipe, tags: t }) => {
+    rows.filter(({ recipe, tags: t, per, veg }) => {
       if (meal !== 'all' && !recipe.meals.includes(meal)) return false;
       if (query.trim() && !recipe.title.toLowerCase().includes(query.trim().toLowerCase())) return false;
       if (tags.some((x) => !t.includes(x))) return false;
@@ -42,6 +45,7 @@
       if (onlyMine && !isAllowed(recipe, app.safeProfile, app.foods)) return false;
       if (onlyCustom && !recipe.custom) return false;
       if (onlyHidden && !app.hiddenSet.has(recipe.id)) return false;
+      if (onlyBalanced && (per.protein < 12 || veg < MEAL_VEG_MIN)) return false;
       return true;
     }),
   );
@@ -91,6 +95,10 @@
         {TAG_LABEL[t]}
       </label>
     {/each}
+    <label class="chip">
+      <input type="checkbox" bind:checked={onlyBalanced} />
+      Белок и овощи
+    </label>
     <label class="chip">
       <input type="checkbox" bind:checked={onlyMine} />
       Подходят мне по профилю

@@ -4,6 +4,8 @@
   import { app } from './app.svelte';
   import { fmtInt } from './format';
   import MealCell from './MealCell.svelte';
+  import MicroPanel from './MicroPanel.svelte';
+  import TipsPanel from './TipsPanel.svelte';
   import { DAY_NAMES, DAY_SHORT, MEAL_LABEL } from './labels';
 
   const slots = $derived(slotsOf(app.safeProfile));
@@ -122,7 +124,10 @@
         </article>
       {/each}
     </div>
+    <MicroPanel />
   {/if}
+
+  <TipsPanel />
 </section>
 
 <style>

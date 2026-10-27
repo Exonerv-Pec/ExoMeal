@@ -10,6 +10,9 @@ A weekly meal planner that works offline. Press one button and get a week of hea
 
 - **Builds a week.** Four meals a day (breakfast, lunch, dinner, snack, each can be switched off). Every day lands within a few percent of your calorie target, and protein is kept near the goal. Dishes do not repeat day after day.
 - **You stay in control.** Pin a dish and it survives "build again". Swap one meal for a random one, pick a dish yourself, or change the portion size in quarters.
+- **Vitamins and minerals.** Daily needs per person for fibre, vitamins C, A, D, B12, folate, calcium, iron, magnesium, potassium and zinc. The week is tuned to cover the weekly needs, and the week page shows how much of each is covered.
+- **Your macro split.** Standard, Mike Mentzer's 60 % carbs / 25 % protein / 15 % fat, or your own percentages. Losing weight takes 500 kcal off, gaining adds 200, never below the safety floor.
+- **Simple rules.** The generator aims for protein and vegetables in breakfast, lunch and dinner, with short tips on water, sleep, movement and the 80/20 rule.
 - **For the whole family.** Add people to the household: each gets their own calorie and macro target. The menu is shared, portions are sized for each person, and the shopping list and cooking batches cover everyone.
 - **Calculates your target.** Mifflin–St Jeor from age, height, weight, activity and goal, with a safety floor. You can type your own calories instead.
 - **Respects your diet.** Vegan, vegetarian, pescatarian, plus exclusions (gluten, dairy, eggs, nuts, peanuts, fish, shellfish, soy, sesame), foods you dislike, and a time limit per dish. Diet labels on recipes are computed from the ingredients, so they cannot drift out of date.

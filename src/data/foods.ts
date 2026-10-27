@@ -143,6 +143,7 @@ export const FOODS: Food[] = [
   f('arugula', 'Руккола', 'produce', 25, 2.6, 0.7, 3.7),
   f('asparagus', 'Спаржа', 'produce', 20, 2.2, 0.1, 3.9),
   f('sauerkraut', 'Квашеная капуста', 'produce', 19, 1.8, 0.1, 4.4),
+  f('pickles', 'Огурцы солёные', 'produce', 11, 0.5, 0.2, 1.5, pcs(60)),
   f('peach', 'Персики', 'produce', 39, 0.9, 0.3, 9.5, pcs(150)),
   f('mandarin', 'Мандарины', 'produce', 53, 0.8, 0.3, 13.3, pcs(80)),
   f('grapes', 'Виноград', 'produce', 69, 0.7, 0.2, 18),
@@ -187,3 +188,11 @@ export const FOODS: Food[] = [
   f('mustard', 'Горчица', 'oils', 66, 4.4, 4, 5, { density: 1.05, staple: true }),
   f('balsamic', 'Бальзамический уксус', 'oils', 88, 0.5, 0, 19.5, { density: 1.1, shop: 'ml', staple: true }),
 ];
+
+/** Vegetables proper: what "vegetables in every meal" counts. Potatoes, fruit and legumes are not here. */
+const VEGETABLES = new Set([
+  'tomato', 'cucumber', 'bell-pepper', 'onion', 'carrot', 'zucchini', 'eggplant', 'broccoli', 'cauliflower',
+  'cabbage', 'spinach', 'lettuce', 'mushrooms', 'green-peas', 'beet', 'pumpkin', 'greens', 'celery', 'radish',
+  'leek', 'green-beans', 'chinese-cabbage', 'arugula', 'asparagus', 'sauerkraut', 'pickles', 'tomatoes-canned',
+]);
+for (const food of FOODS) if (VEGETABLES.has(food.id)) food.veg = true;

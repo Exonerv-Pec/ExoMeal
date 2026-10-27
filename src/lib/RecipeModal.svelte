@@ -1,11 +1,12 @@
 <script lang="ts">
   import { recipeTags } from '../core/diet';
+  import { MEAL_VEG_MIN, recipeMicro } from '../core/micro';
   import { recipePerServing } from '../core/nutrition';
-  import { MEAL_ORDER, type MealType } from '../core/types';
-  import { fmtIngredient } from '../core/units';
+  import { MEAL_ORDER, MICRO_KEYS, type MealType } from '../core/types';
+  import { fmtIngredient, fmtNum } from '../core/units';
   import { app } from './app.svelte';
   import { fmtInt, fmtMinutes, fmtPortions, portionsWord, round1 } from './format';
-  import { DAY_NAMES, MEAL_LABEL, TAG_LABEL } from './labels';
+  import { DAY_NAMES, MEAL_LABEL, MICRO_LABEL, MICRO_UNIT, TAG_LABEL } from './labels';
   import Modal from './Modal.svelte';
 
   const recipe = $derived(app.openRecipeId ? app.recipeIndex.get(app.openRecipeId) : undefined);
@@ -26,6 +27,9 @@
   const hidden = $derived(recipe ? app.hiddenSet.has(recipe.id) : false);
   const per = $derived(recipe ? recipePerServing(recipe, app.foods) : null);
   const tags = $derived(recipe ? recipeTags(recipe, app.foods) : []);
+  const micro = $derived(recipe ? recipeMicro(recipe, app.foods) : null);
+  const hasProtein = $derived((per?.protein ?? 0) >= 12);
+  const hasVeg = $derived((micro?.vegGrams ?? 0) >= MEAL_VEG_MIN);
   const k = $derived(recipe ? servings / recipe.servings : 1);
   const slots = $derived(MEAL_ORDER.filter((m) => app.safeProfile.meals.includes(m)));
 
@@ -62,8 +66,10 @@
         <span>{fmtMinutes(recipe.time)}</span>
         <span>{recipe.meals.map((m) => MEAL_LABEL[m]).join(', ')}</span>
       </p>
-      {#if tags.length}
+      {#if tags.length || hasProtein || hasVeg}
         <p class="tags">
+          {#if hasProtein}<span class="tag">Есть белок</span>{/if}
+          {#if hasVeg}<span class="tag">Есть овощи</span>{/if}
           {#each tags as t}<span class="tag">{TAG_LABEL[t]}</span>{/each}
         </p>
       {/if}
@@ -75,6 +81,28 @@
         <div><dt>Углеводы, г</dt><dd>{round1(per.carbs)}</dd></div>
       </dl>
       <p class="hint muted">На одну порцию. Значения ориентировочные.</p>
+
+      {#if micro}
+        <details class="micro">
+          <summary>Витамины и минералы на порцию</summary>
+          <table>
+            <tbody>
+              {#each MICRO_KEYS as k (k)}
+                {@const v = micro.values[k]}
+                <tr>
+                  <th scope="row">{MICRO_LABEL[k]}</th>
+                  <td>{fmtNum(v >= 100 ? Math.round(v) : Math.round(v * 10) / 10, 1)} {MICRO_UNIT[k]}</td>
+                  <td class="muted">{Math.round((v / app.viewNorms[k]) * 100)}%</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+          <p class="muted small">
+            Проценты от дневной нормы{app.household.members.length > 1 ? `: ${app.viewMember.person.name}` : ''}.
+            {#if micro.incomplete}Для части продуктов нет данных.{/if}
+          </p>
+        </details>
+      {/if}
 
       <div class="servings">
         <h3>Ингредиенты</h3>
@@ -189,6 +217,35 @@
   .hint {
     margin-top: -0.5rem;
     font-size: 0.82rem;
+  }
+
+  .micro summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .micro table {
+    width: 100%;
+    margin: 0.5rem 0;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .micro th,
+  .micro td {
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+  }
+
+  .micro th {
+    text-align: left;
+    font-weight: 400;
+  }
+
+  .micro td.muted {
+    width: 3.5rem;
   }
 
   .servings {
