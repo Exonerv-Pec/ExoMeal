@@ -53,6 +53,8 @@ class AppState {
   recipeIndex = $derived(indexRecipes(this.recipes));
   shopping = $derived(buildShoppingList(this.plan, this.recipeIndex, this.foods, this.household.factor));
   prep = $derived(buildPrepList(this.plan, this.recipeIndex, this.household.factor));
+  /** Different dishes in the week. */
+  dishCount = $derived(new Set(this.plan.days.flatMap((d) => Object.values(d).map((m) => m?.recipeId))).size);
   hasPlan = $derived(this.plan.days.some((d) => Object.keys(d).length > 0));
   lockedCount = $derived(this.plan.days.reduce((n, d) => n + Object.values(d).filter((m) => m?.locked).length, 0));
   missingSlots = $derived(emptySlots(this.safeProfile, this.recipes, this.foods));

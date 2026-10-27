@@ -3,6 +3,7 @@
   import { dayNutrition, makeCtx, slotsOf } from '../core/planner';
   import { app } from './app.svelte';
   import { fmtInt } from './format';
+  import BatchSettings from './BatchSettings.svelte';
   import MealCell from './MealCell.svelte';
   import MicroPanel from './MicroPanel.svelte';
   import TipsPanel from './TipsPanel.svelte';
@@ -43,6 +44,8 @@
       {/if}
     </div>
   </div>
+
+  <BatchSettings compact />
 
   {#if many}
     <div class="people no-print" role="group" aria-label="Чьи порции показать">

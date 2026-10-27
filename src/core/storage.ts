@@ -1,4 +1,4 @@
-import { MAX_PEOPLE, type Food, type Person, type Plan, type Profile, type Recipe } from './types';
+import { MAX_BATCH_DAYS, MAX_PEOPLE, type Food, type Person, type Plan, type Profile, type Recipe } from './types';
 
 export const STORAGE_KEY = 'exomeal:v1';
 
@@ -36,7 +36,9 @@ export function defaultProfile(): Profile {
     hiddenRecipes: [],
     meals: ['breakfast', 'lunch', 'dinner', 'snack'],
     maxTime: null,
-    cookForTwoDays: false,
+    batchDays: 1,
+    batchMeals: ['lunch', 'dinner'],
+    sameLunchDinner: false,
   };
 }
 
@@ -103,7 +105,15 @@ export function parseState(raw: unknown): SavedState {
     hiddenRecipes: Array.isArray(p.hiddenRecipes) ? p.hiddenRecipes.filter((x): x is string => typeof x === 'string') : [],
     meals: list(p.meals, ['breakfast', 'lunch', 'dinner', 'snack'] as const),
     maxTime: typeof p.maxTime === 'number' && p.maxTime > 0 ? p.maxTime : null,
-    cookForTwoDays: p.cookForTwoDays === true,
+    // Before batches existed there was a "cook for two days" switch.
+    batchDays:
+      typeof p.batchDays === 'number' && Number.isFinite(p.batchDays)
+        ? Math.round(Math.min(MAX_BATCH_DAYS, Math.max(1, p.batchDays)))
+        : p.cookForTwoDays === true
+          ? 2
+          : base.batchDays,
+    batchMeals: Array.isArray(p.batchMeals) ? list(p.batchMeals, ['breakfast', 'lunch', 'dinner', 'snack'] as const) : base.batchMeals,
+    sameLunchDinner: p.sameLunchDinner === true,
   };
   if (profile.meals.length === 0) profile.meals = base.meals;
 

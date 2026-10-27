@@ -196,3 +196,7 @@ const VEGETABLES = new Set([
   'leek', 'green-beans', 'chinese-cabbage', 'arugula', 'asparagus', 'sauerkraut', 'pickles', 'tomatoes-canned',
 ]);
 for (const food of FOODS) if (VEGETABLES.has(food.id)) food.veg = true;
+
+/** Wilts, browns or goes soggy within a day: the planner avoids repeating such dishes over several days. */
+const FRESH = new Set(['lettuce', 'arugula', 'avocado', 'banana']);
+for (const food of FOODS) if (FRESH.has(food.id)) food.fresh = true;

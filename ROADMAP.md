@@ -9,6 +9,7 @@
 - Cooking batches
 - Own recipes and own foods, JSON backup and restore
 - 181 recipes and 136 foods, with vitamins and minerals per food
+- Batch cooking: one dish for 1–4 days, chosen meals, dinner same as lunch
 - Weekly vitamin and mineral coverage per person; macro split presets; protein and vegetables in main meals
 - Hide a recipe so the week generator never picks it
 - GitHub Actions: check, test, build, deploy to GitHub Pages
@@ -19,7 +20,7 @@
 - **Pack sizes.** Round amounts up to what shops sell (a 400 g can, a 10-egg tray) and show what is left over.
 - **More recipes.** Keep growing the collection, especially vegan, gluten-free and quick (under 20 minutes) dishes.
 - **Installable and offline.** Web app manifest and service worker, so it works from the home screen without a connection.
-- **Smarter batching.** Plan leftovers across days, reuse a cooked base (rice, chicken) in two different dishes, and a combined cooking order for a Sunday session.
+- **Smarter batching.** Reuse a cooked base (rice, chicken) in two different dishes, and a combined cooking order for a cooking day.
 - **Weekly history.** Keep past weeks and repeat a good one.
 - **Better food data.** Cross-check values against USDA FoodData Central; add vitamins and fibre.
 - **Languages.** English interface and recipes; the data model is already language-neutral apart from titles and steps.

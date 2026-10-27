@@ -44,6 +44,52 @@ export function clonePlan(plan: Plan): Plan {
 }
 
 // ---------------------------------------------------------------------------
+// Batch cooking: one dish for several days in a row
+// ---------------------------------------------------------------------------
+
+/**
+ * The week split into cooking blocks of at most `n` days, as even as possible:
+ * 2 → 2+2+2+1, 3 → 3+2+2, 4 → 4+3.
+ */
+export function batchBlocks(n: number): number[][] {
+  const size = Math.min(DAYS, Math.max(1, Math.round(n)));
+  const count = Math.ceil(DAYS / size);
+  const base = Math.floor(DAYS / count);
+  const extra = DAYS % count;
+  const blocks: number[][] = [];
+  let d = 0;
+  for (let i = 0; i < count; i++) {
+    const len = base + (i < extra ? 1 : 0);
+    blocks.push(Array.from({ length: len }, (_, k) => d + k));
+    d += len;
+  }
+  return blocks;
+}
+
+export interface Cell {
+  day: number;
+  slot: MealType;
+}
+
+/**
+ * Every meal that is the same cooked dish as this one: the other days of its
+ * block, and lunch with dinner when they are one dish. Ordered by day, then
+ * meal, so the first cell is where the dish gets cooked.
+ */
+export function cookGroup(profile: Profile, day: number, slot: MealType): Cell[] {
+  const slots = slotsOf(profile);
+  const pair = profile.sameLunchDinner && (slot === 'lunch' || slot === 'dinner') && slots.includes('lunch') && slots.includes('dinner');
+  const groupSlots: MealType[] = pair ? ['lunch', 'dinner'] : [slot];
+  const batched = profile.batchDays > 1 && groupSlots.some((s) => profile.batchMeals.includes(s));
+  const days = batched ? (batchBlocks(profile.batchDays).find((b) => b.includes(day)) ?? [day]) : [day];
+  return days.flatMap((d) => groupSlots.map((s) => ({ day: d, slot: s })));
+}
+
+function cellKey(c: Cell): string {
+  return `${c.day}:${c.slot}`;
+}
+
+// ---------------------------------------------------------------------------
 // Context shared by all planner functions
 // ---------------------------------------------------------------------------
 
@@ -56,6 +102,8 @@ export interface Ctx {
   recipes: Map<string, Recipe>;
   per: Map<string, Nutrition>;
   micro: Map<string, RecipeMicro>;
+  /** Recipes best eaten the day they are made (salad leaves, avocado, banana). */
+  fresh: Set<string>;
 }
 
 /** A person the week's vitamins and minerals are checked for. */
@@ -75,15 +123,17 @@ export function makeCtx(profile: Profile, targets: Targets, recipes: Recipe[], f
   const pool: Record<MealType, Recipe[]> = { breakfast: [], lunch: [], dinner: [], snack: [] };
   const per = new Map<string, Nutrition>();
   const micro = new Map<string, RecipeMicro>();
+  const fresh = new Set<string>();
   const byId = new Map<string, Recipe>();
   for (const r of recipes) {
     byId.set(r.id, r);
     per.set(r.id, recipePerServing(r, foods));
     micro.set(r.id, recipeMicro(r, foods));
+    if (r.ingredients.some((i) => foods.get(i.food)?.fresh)) fresh.add(r.id);
     if (!isAllowed(r, profile, foods)) continue;
     for (const m of r.meals) pool[m].push(r);
   }
-  return { profile, targets, slots, slotKcal, pool, recipes: byId, per, micro };
+  return { profile, targets, slots, slotKcal, pool, recipes: byId, per, micro, fresh };
 }
 
 /** Meals for which the profile leaves no recipe at all (the UI warns about these). */
@@ -153,8 +203,15 @@ function pickRecipe(
   days: PlanDay[],
   used: Map<string, number>,
   exclude?: Set<string>,
+  fitsAll?: MealType[],
+  /** Days the dish will be eaten: fresh dishes do not keep. */
+  keepDays = 1,
 ): Recipe | undefined {
-  const pool = ctx.pool[slot].filter((r) => !exclude?.has(r.id));
+  let pool = ctx.pool[slot].filter((r) => !exclude?.has(r.id));
+  if (fitsAll && fitsAll.length > 1) {
+    const both = pool.filter((r) => fitsAll.every((m) => r.meals.includes(m)));
+    if (both.length) pool = both;
+  }
   const target = ctx.slotKcal[slot] ?? 0;
   const today = Object.values(days[dayIndex]).map((m) => m?.recipeId);
   const yesterday = dayIndex > 0 ? days[dayIndex - 1][slot]?.recipeId : undefined;
@@ -167,6 +224,7 @@ function pickRecipe(
     const need = target / kcalPer(ctx, r.id);
     penalty += Math.abs(Math.log(need)) * 2.2; // how far the serving is from the slot
     if (need < MIN_PORTION || need > MAX_PORTION) penalty += 4;
+    if (keepDays > 1 && ctx.fresh.has(r.id)) penalty += 4; // a salad on day three is no fun
     return Math.exp(-penalty);
   });
   return weightedPick(pool, weights, rng);
@@ -195,15 +253,21 @@ function buildCandidate(ctx: Ctx, rng: Rng, base: Plan | null): PlanDay[] {
   for (let d = 0; d < DAYS; d++) {
     for (const slot of ctx.slots) {
       if (days[d][slot]) continue;
-      if (ctx.profile.cookForTwoDays && (slot === 'lunch' || slot === 'dinner') && d % 2 === 1) {
-        const prev = days[d - 1][slot];
-        if (prev) {
-          days[d][slot] = { recipeId: prev.recipeId, portions: 1 };
-          bump(used, prev.recipeId);
+      // Same dish as the rest of its cooking group (a pinned one wins).
+      const group = cookGroup(ctx.profile, d, slot);
+      const src = group.find((c) => days[c.day][c.slot]?.locked) ?? group.find((c) => days[c.day][c.slot]);
+      if (src) {
+        const id = days[src.day][src.slot]!.recipeId;
+        if (ctx.recipes.get(id)?.meals.includes(slot)) {
+          days[d][slot] = { recipeId: id, portions: 1 };
+          bump(used, id);
           continue;
         }
       }
-      const recipe = pickRecipe(ctx, rng, slot, d, days, used);
+      // A dish for lunch and dinner must suit both.
+      const groupSlots = [...new Set(group.map((c) => c.slot))];
+      const keep = new Set(group.map((c) => c.day)).size;
+      const recipe = pickRecipe(ctx, rng, slot, d, days, used, undefined, groupSlots, keep);
       if (!recipe) continue;
       days[d][slot] = { recipeId: recipe.id, portions: 1 };
       bump(used, recipe.id);
@@ -216,9 +280,9 @@ function buildCandidate(ctx: Ctx, rng: Rng, base: Plan | null): PlanDay[] {
 /** Lower is better. */
 function cost(ctx: Ctx, days: PlanDay[], goals: MicroGoal[] = []): number {
   let c = 0;
-  const counts = new Map<string, number>();
+  const groups = new Map<string, Set<string>>();
   const week: Record<string, number> = {};
-  for (const day of days) {
+  for (const [d, day] of days.entries()) {
     const n = dayNutrition(ctx, day);
     const e = (n.kcal - ctx.targets.kcal) / ctx.targets.kcal;
     c += 400 * e * e;
@@ -227,7 +291,11 @@ function cost(ctx: Ctx, days: PlanDay[], goals: MicroGoal[] = []): number {
     for (const [slot, m] of Object.entries(day) as [MealType, PlanDay[MealType]][]) {
       if (!m) continue;
       c += Math.abs(Math.log(m.portions)) * 0.8;
-      counts.set(m.recipeId, (counts.get(m.recipeId) ?? 0) + 1);
+      const key = cellKey(cookGroup(ctx.profile, d, slot)[0]);
+      // Eating yesterday's salad: possible, but not nice.
+      if (ctx.fresh.has(m.recipeId) && Number(key.split(':')[0]) !== d) c += 1.5;
+      if (!groups.has(m.recipeId)) groups.set(m.recipeId, new Set());
+      groups.get(m.recipeId)!.add(key);
       const rm = ctx.micro.get(m.recipeId);
       // Protein and vegetables in every main meal: a nudge, not a ban.
       if (BALANCED_MEALS.has(slot)) {
@@ -237,7 +305,8 @@ function cost(ctx: Ctx, days: PlanDay[], goals: MicroGoal[] = []): number {
       if (goals.length && rm) for (const k of MICRO_KEYS) week[k] = (week[k] ?? 0) + rm.values[k] * m.portions;
     }
   }
-  for (const n of counts.values()) c += Math.max(0, n - 1) * 0.7;
+  // Repeats inside one cooking group are the point; repeats across groups are not.
+  for (const keys of groups.values()) c += Math.max(0, keys.size - 1) * 0.7;
 
   // Weekly vitamins and minerals for every person; anything above 100 % earns nothing.
   if (goals.length) {
@@ -265,32 +334,32 @@ function improve(ctx: Ctx, days: PlanDay[], rng: Rng, goals: MicroGoal[], passes
       for (const slot of ctx.slots) {
         const cur = days[d][slot];
         if (!cur || cur.locked) continue;
-        const paired = ctx.profile.cookForTwoDays && (slot === 'lunch' || slot === 'dinner');
-        // A dish cooked for two days is swapped as a pair, from its first day.
-        if (paired && d % 2 === 1 && days[d - 1][slot]?.recipeId === cur.recipeId) continue;
-        const group = paired
-          ? [d, d + 1].filter((x) => x < DAYS && days[x][slot]?.recipeId === cur.recipeId && !days[x][slot]!.locked)
-          : [d];
+        // A batch is swapped as a whole, from the cell where it is cooked.
+        const all = cookGroup(ctx.profile, d, slot);
+        if (cellKey(all[0]) !== cellKey({ day: d, slot })) continue;
+        // A pinned day pins its whole batch.
+        if (all.some((c) => days[c.day][c.slot]?.locked && days[c.day][c.slot]!.recipeId === cur.recipeId)) continue;
+        const group = all.filter((c) => days[c.day][c.slot]?.recipeId === cur.recipeId && !days[c.day][c.slot]!.locked);
+        const groupDays = [...new Set(group.map((c) => c.day))];
 
         const used = new Map<string, number>();
         for (const day of days) for (const m of Object.values(day)) if (m) bump(used, m.recipeId);
         const tried = new Set([cur.recipeId]);
         for (let t = 0; t < tries; t++) {
-          const recipe = pickRecipe(ctx, rng, slot, d, days, used, tried);
+          const recipe = pickRecipe(ctx, rng, slot, d, days, used, tried, [...new Set(group.map((c) => c.slot))], groupDays.length);
           if (!recipe) break;
           tried.add(recipe.id);
-          const backup = group.map((x) => JSON.parse(JSON.stringify(days[x])) as PlanDay);
-          for (const x of group) {
-            days[x][slot] = { recipeId: recipe.id, portions: 1 };
-            fitDay(ctx, days[x]);
-          }
+          if (group.some((c) => !recipe.meals.includes(c.slot))) continue;
+          const backup = groupDays.map((x) => JSON.parse(JSON.stringify(days[x])) as PlanDay);
+          for (const c of group) days[c.day][c.slot] = { recipeId: recipe.id, portions: 1 };
+          for (const x of groupDays) fitDay(ctx, days[x]);
           const c = cost(ctx, days, goals);
           if (c < best - 1e-9) {
             best = c;
             changed = true;
             break;
           }
-          group.forEach((x, i) => (days[x] = backup[i]));
+          groupDays.forEach((x, i) => (days[x] = backup[i]));
         }
       }
     }
@@ -347,6 +416,17 @@ export function generatePlan(
 // Editing one meal
 // ---------------------------------------------------------------------------
 
+/** Sets one meal and picks a portion that brings its day close to the target. */
+function placeInto(ctx: Ctx, plan: Plan, dayIndex: number, slot: MealType, recipeId: string): void {
+  const day = plan.days[dayIndex];
+  const others = Object.entries(day).filter(([s]) => s !== slot);
+  const othersKcal = others.reduce((sum, [, m]) => sum + (m ? (ctx.per.get(m.recipeId)?.kcal ?? 0) * m.portions : 0), 0);
+  const slotTarget = ctx.slotKcal[slot] ?? ctx.targets.kcal * 0.25;
+  // Aim at what is left of the day, but stay within a sensible range of the slot's own share.
+  const wanted = Math.min(slotTarget * 1.5, Math.max(slotTarget * 0.6, ctx.targets.kcal - othersKcal));
+  day[slot] = { recipeId, portions: snap(wanted / kcalPer(ctx, recipeId)) };
+}
+
 /** Puts a recipe into a slot and picks portions that bring the day close to the target. */
 export function placeRecipe(
   plan: Plan,
@@ -360,17 +440,14 @@ export function placeRecipe(
 ): Plan {
   const ctx = makeCtx(profile, targets, recipes, foods);
   const next = clonePlan(plan);
-  const day = next.days[dayIndex];
-  const others = Object.entries(day).filter(([s]) => s !== slot);
-  const othersKcal = others.reduce((sum, [, m]) => sum + (m ? (ctx.per.get(m.recipeId)?.kcal ?? 0) * m.portions : 0), 0);
-  const slotTarget = ctx.slotKcal[slot] ?? targets.kcal * 0.25;
-  // Aim at what is left of the day, but stay within a sensible range of the slot's own share.
-  const wanted = Math.min(slotTarget * 1.5, Math.max(slotTarget * 0.6, targets.kcal - othersKcal));
-  day[slot] = { recipeId, portions: snap(wanted / kcalPer(ctx, recipeId)) };
+  placeInto(ctx, next, dayIndex, slot, recipeId);
   return next;
 }
 
-/** Replaces one meal with a different random recipe. */
+/**
+ * Replaces one meal with a different random recipe. When the meal is part of
+ * a batch (or lunch and dinner are one dish), the whole batch changes.
+ */
 export function rerollSlot(
   plan: Plan,
   dayIndex: number,
@@ -390,11 +467,23 @@ export function rerollSlot(
   if (current) exclude.add(current.recipeId);
   for (const m of Object.values(plan.days[dayIndex])) if (m) exclude.add(m.recipeId);
 
-  let recipe = pickRecipe(ctx, rng, slot, dayIndex, plan.days, used, exclude);
+  const group = current
+    ? cookGroup(profile, dayIndex, slot).filter((c) => {
+        const m = plan.days[c.day][c.slot];
+        return (c.day === dayIndex && c.slot === slot) || (m?.recipeId === current.recipeId && !m.locked);
+      })
+    : [{ day: dayIndex, slot }];
+  const fits = (r: Recipe) => group.every((c) => r.meals.includes(c.slot));
+
+  const keep = new Set(group.map((c) => c.day)).size;
+  let recipe = pickRecipe(ctx, rng, slot, dayIndex, plan.days, used, exclude, [...new Set(group.map((c) => c.slot))], keep);
+  if (recipe && !fits(recipe)) recipe = ctx.pool[slot].find((r) => !exclude.has(r.id) && fits(r));
   if (!recipe && current) {
     // Small pools: allow anything except the dish that is already there.
     recipe = pickRecipe(ctx, rng, slot, dayIndex, plan.days, used, new Set([current.recipeId]));
   }
   if (!recipe) return plan;
-  return placeRecipe(plan, dayIndex, slot, recipe.id, profile, targets, recipes, foods);
+  const next = clonePlan(plan);
+  for (const c of group) placeInto(ctx, next, c.day, c.slot, recipe.id);
+  return next;
 }

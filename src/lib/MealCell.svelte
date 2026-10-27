@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { MAX_PORTION, MIN_PORTION, PORTION_STEP } from '../core/planner';
+  import { cookGroup, MAX_PORTION, MIN_PORTION, PORTION_STEP } from '../core/planner';
   import { recipePerServing } from '../core/nutrition';
   import type { MealType } from '../core/types';
   import { app } from './app.svelte';
-  import { fmtInt, fmtPortions } from './format';
+  import { fmtInt, fmtPortions, plural } from './format';
   import Icon from './Icon.svelte';
   import { MEAL_LABEL } from './labels';
 
@@ -14,6 +14,15 @@
   // The plan stores the first person's portions; others eat the same dish scaled.
   const share = $derived(app.viewMember.share);
   const portions = $derived(meal ? Math.round(meal.portions * share * 100) / 100 : 0);
+  // Batch cooking: is this where the dish is cooked, or eaten from what is ready?
+  const batch = $derived.by(() => {
+    if (!meal) return null;
+    const cells = cookGroup(app.safeProfile, day, slot).filter((c) => app.plan.days[c.day][c.slot]?.recipeId === meal.recipeId);
+    if (cells.length < 2) return null;
+    const first = cells[0].day === day && cells[0].slot === slot;
+    const days = new Set(cells.map((c) => c.day)).size;
+    return { first, days };
+  });
   const kcal = $derived(recipe && meal ? recipePerServing(recipe, app.foods).kcal * meal.portions * share : 0);
 </script>
 
@@ -22,6 +31,11 @@
 
   {#if meal && recipe}
     <button class="title" type="button" onclick={() => (app.openRecipeId = recipe.id)}>{recipe.title}</button>
+    {#if batch}
+      <span class="batch" class:first={batch.first}>
+        {batch.first ? (batch.days > 1 ? `Готовим на ${batch.days} ${plural(batch.days, ['день', 'дня', 'дней'])}` : 'Готовим на обед и ужин') : 'Из готового'}
+      </span>
+    {/if}
     <p class="figures">
       <span>{fmtPortions(portions)}&nbsp;порц.</span>
       <strong>{fmtInt(kcal)}&nbsp;ккал</strong>
@@ -61,8 +75,8 @@
       <button
         class="btn btn-quiet btn-icon"
         type="button"
-        aria-label="Заменить блюдо случайным"
-        title="Заменить"
+        aria-label={batch ? 'Заменить блюдо во всех днях, где оно повторяется' : 'Заменить блюдо случайным'}
+        title={batch ? 'Заменить во всём блоке' : 'Заменить'}
         onclick={() => app.swap(day, slot)}
       >
         <Icon name="shuffle" size={15} />
@@ -121,6 +135,22 @@
   .title:hover {
     text-decoration: underline;
     text-underline-offset: 3px;
+  }
+
+  .batch {
+    align-self: flex-start;
+    padding: 0 0.4rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--paper);
+    font-size: 0.74rem;
+    color: var(--ink-soft);
+  }
+
+  .batch.first {
+    border-color: var(--ink);
+    color: var(--ink);
+    font-weight: 600;
   }
 
   .figures {

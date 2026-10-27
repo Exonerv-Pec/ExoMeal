@@ -30,3 +30,12 @@ export function fmtMinutes(min: number): string {
 export function round1(n: number): string {
   return fmtNum(Math.round(n * 10) / 10, 1);
 }
+
+/** Russian plural: plural(5, ['блюдо', 'блюда', 'блюд']) → "блюд". */
+export function plural(n: number, [one, few, many]: [string, string, string]): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}

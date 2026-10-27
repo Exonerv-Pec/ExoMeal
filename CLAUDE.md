@@ -15,7 +15,7 @@ Run `check`, `test` and `build` before every commit.
 
 ## Layout
 
-- `src/core/` pure TypeScript: `types`, `units` (grams conversion, shopping labels), `nutrition` (per-serving, daily targets, macro split, household shares), `micro` (vitamins/minerals per recipe, daily norms by sex/age, weekly coverage, protein+veg rule), `diet` (flags → diets, exclusions), `planner` (seeded generator, fit portions, reroll, place), `shopping` (list and cooking batches), `storage` (load/save/sanitize)
+- `src/core/` pure TypeScript: `types`, `units` (grams conversion, shopping labels), `nutrition` (per-serving, daily targets, macro split, household shares), `micro` (vitamins/minerals per recipe, daily norms by sex/age, weekly coverage, protein+veg rule), `diet` (flags → diets, exclusions), `planner` (seeded generator, cooking batches and `cookGroup`, fit portions, local search, reroll, place), `shopping` (list and cooking batches), `storage` (load/save/sanitize)
 - `src/data/` foods and recipes as typed TypeScript. Diet tags are derived from food `flags`; never hand-write them. Every food needs a row in `micro.ts`; vegetables are listed in `VEGETABLES` in `foods.ts`.
 - Recipes are written in our own words. Never copy texts from cookbooks, chefs or sites, and never name them as a source.
 - `src/lib/` Svelte 5 UI (runes). Shared state is `app.svelte.ts` (one `AppState` class, persisted to localStorage).

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Batch cooking: cook one dish for 1, 2, 3 or 4 days in a row (the week splits evenly: 4+3, 3+2+2, 2+2+2+1), choose which meals repeat, and optionally make dinner the same dish as lunch. Set it in the profile or right above the week. Cells show where a dish is cooked and where it is eaten from what is ready; swapping a batch dish swaps the whole batch; pinning one day pins the batch. Salads with leaves, avocado or banana are kept out of multi-day batches. The old "cook for two days" switch becomes two-day batches
 - Vitamins and minerals: fibre, vitamins C, A, D, B12, folate, calcium, iron, magnesium, potassium and zinc for every food; daily needs per person by sex and age (US National Academies DRIs); the generator tunes the week to cover everyone's weekly needs and the week page shows the coverage. Vitamin D is shown but not chased, since it comes mostly from sunlight
 - Macro split per person: standard, Mentzer (60 % carbohydrates, 25 % protein, 15 % fat) or custom percentages within safe limits
 - Goals: losing weight takes 500 kcal off the estimate, gaining adds 200; the safety floor still applies

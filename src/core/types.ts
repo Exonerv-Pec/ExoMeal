@@ -69,6 +69,8 @@ export interface Food {
   flags?: Flag[];
   /** A vegetable (not fruit, potato or grain): counts towards "vegetables in every meal". */
   veg?: boolean;
+  /** Spoils or wilts once cut or dressed: dishes with it are best eaten the day they are made. */
+  fresh?: boolean;
   /** Per 100 g: fibre g, vitamin C mg, A µg RAE, D µg, B12 µg, folate µg, minerals mg. */
   micro?: Partial<MicroValues>;
   /** Added by the user. */
@@ -156,9 +158,16 @@ export interface Profile {
   meals: MealType[];
   /** Skip recipes that take longer, in minutes. null = no limit. */
   maxTime: number | null;
-  /** Cook lunch and dinner once for two days in a row. */
-  cookForTwoDays: boolean;
+  /** Cook a dish once and eat it this many days in a row (1–4). */
+  batchDays: number;
+  /** Meals that repeat when batchDays > 1. */
+  batchMeals: MealType[];
+  /** Dinner is the same dish as lunch. */
+  sameLunchDinner: boolean;
 }
+
+/** Longest batch: cooked food keeps 3–4 days in the fridge. */
+export const MAX_BATCH_DAYS = 4;
 
 export interface Targets {
   kcal: number;

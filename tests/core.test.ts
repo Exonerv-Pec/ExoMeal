@@ -11,6 +11,9 @@ import {
   makeCtx,
   placeRecipe,
   rerollSlot,
+  batchBlocks,
+  clonePlan,
+  cookGroup,
 } from '../src/core/planner';
 import { makeRng } from '../src/core/rng';
 import { buildPrepList, buildShoppingList, groupShoppingList, indexRecipes, shoppingToText } from '../src/core/shopping';
@@ -351,8 +354,77 @@ describe('planner', () => {
     for (const day of plan.days) expect(Object.keys(day).sort()).toEqual(['breakfast', 'dinner', 'lunch']);
   });
 
+  it('splits the week into even cooking blocks', () => {
+    const sizes = (n: number) => batchBlocks(n).map((b) => b.length);
+    expect(sizes(1)).toEqual([1, 1, 1, 1, 1, 1, 1]);
+    expect(sizes(2)).toEqual([2, 2, 2, 1]);
+    expect(sizes(3)).toEqual([3, 2, 2]);
+    expect(sizes(4)).toEqual([4, 3]);
+    expect(batchBlocks(4).flat()).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  it('knows which meals share one cooked dish', () => {
+    const p: Profile = { ...profile, batchDays: 4, batchMeals: ['lunch'], sameLunchDinner: true };
+    expect(cookGroup(p, 5, 'dinner')).toHaveLength(6);
+    expect(cookGroup(p, 5, 'dinner')[0]).toEqual({ day: 4, slot: 'lunch' });
+    expect(cookGroup(p, 2, 'breakfast')).toEqual([{ day: 2, slot: 'breakfast' }]);
+    expect(cookGroup(profile, 3, 'lunch')).toEqual([{ day: 3, slot: 'lunch' }]);
+  });
+
+  it('cooks every meal for four days: two dishes per meal a week, days still on target', () => {
+    const p: Profile = { ...profile, batchDays: 4, batchMeals: ['breakfast', 'lunch', 'dinner', 'snack'] };
+    const t = calcTargets(p.people[0]);
+    const plan = generatePlan(p, t, recipes, foods, { seed: 31 });
+    const ctx = makeCtx(p, t, recipes, foods);
+    for (const slot of ['breakfast', 'lunch', 'dinner', 'snack'] as const) {
+      const ids = plan.days.map((d) => d[slot]!.recipeId);
+      expect(new Set(ids.slice(0, 4)).size, slot).toBe(1);
+      expect(new Set(ids.slice(4)).size, slot).toBe(1);
+      expect(ids[4], slot).not.toBe(ids[3]);
+    }
+    for (const day of plan.days) expect(Math.abs(dayNutrition(ctx, day).kcal / t.kcal - 1)).toBeLessThan(0.1);
+  });
+
+  it('does not batch salads with leaves or avocado over several days', () => {
+    const p: Profile = { ...profile, batchDays: 4, batchMeals: ['breakfast', 'lunch', 'dinner', 'snack'] };
+    const ctx = makeCtx(p, calcTargets(p.people[0]), recipes, foods);
+    expect(ctx.fresh.has('greek-salad-bread') || ctx.fresh.has('chicken-caesar-light')).toBe(true);
+    let fresh = 0;
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const plan = generatePlan(p, calcTargets(p.people[0]), recipes, foods, { seed });
+      for (const d of [1, 2, 3, 5, 6]) for (const m of Object.values(plan.days[d])) if (ctx.fresh.has(m!.recipeId)) fresh++;
+    }
+    expect(fresh).toBe(0);
+  });
+
+  it('can make dinner the same dish as lunch', () => {
+    const p: Profile = { ...profile, batchDays: 3, sameLunchDinner: true };
+    const plan = generatePlan(p, calcTargets(p.people[0]), recipes, foods, { seed: 8 });
+    for (const day of plan.days) expect(day.dinner!.recipeId).toBe(day.lunch!.recipeId);
+    const distinct = new Set(plan.days.flatMap((d) => [d.lunch!.recipeId, d.dinner!.recipeId]));
+    expect(distinct.size).toBe(3);
+    // Breakfast is not batched here: it still changes.
+    expect(new Set(plan.days.map((d) => d.breakfast!.recipeId)).size).toBeGreaterThan(3);
+  });
+
+  it('swaps a whole batch at once and keeps a pinned batch dish', () => {
+    const p: Profile = { ...profile, batchDays: 4 };
+    const t = calcTargets(p.people[0]);
+    const plan = generatePlan(p, t, recipes, foods, { seed: 12 });
+    const next = rerollSlot(plan, 1, 'lunch', p, t, recipes, foods, makeRng(3));
+    const ids = next.days.slice(0, 4).map((d) => d.lunch!.recipeId);
+    expect(new Set(ids).size).toBe(1);
+    expect(ids[0]).not.toBe(plan.days[0].lunch!.recipeId);
+    expect(next.days[4].lunch!.recipeId).toBe(plan.days[4].lunch!.recipeId);
+
+    const pinned = clonePlan(next);
+    pinned.days[2].dinner!.locked = true;
+    const again = generatePlan(p, t, recipes, foods, { seed: 99, base: pinned });
+    for (const d of [0, 1, 2, 3]) expect(again.days[d].dinner!.recipeId).toBe(pinned.days[2].dinner!.recipeId);
+  });
+
   it('cooks lunch and dinner once for two days when asked', () => {
-    const p: Profile = { ...profile, cookForTwoDays: true };
+    const p: Profile = { ...profile, batchDays: 2 };
     const plan = generatePlan(p, calcTargets(p.people[0]), recipes, foods, { seed: 21 });
     for (const d of [1, 3, 5]) {
       expect(plan.days[d].lunch!.recipeId).toBe(plan.days[d - 1].lunch!.recipeId);
@@ -496,6 +568,15 @@ describe('storage', () => {
     expect(s.profile.people[0].age).toBe(100);
     expect(s.profile.people[0].weightKg).toBe(30);
     expect(s.profile.people[0].heightCm).toBe(100);
+  });
+
+  it('turns the old two-day switch into two-day batches and keeps batches in range', () => {
+    expect(parseState({ profile: { cookForTwoDays: true } }).profile.batchDays).toBe(2);
+    expect(parseState({ profile: {} }).profile.batchDays).toBe(1);
+    expect(parseState({ profile: { batchDays: 9 } }).profile.batchDays).toBe(4);
+    expect(parseState({ profile: { batchDays: 0 } }).profile.batchDays).toBe(1);
+    expect(parseState({ profile: {} }).profile.batchMeals).toEqual(['lunch', 'dinner']);
+    expect(parseState({ profile: { batchMeals: ['snack', 'x'] } }).profile.batchMeals).toEqual(['snack']);
   });
 
   it('gives old people a standard macro split and repairs a bad one', () => {

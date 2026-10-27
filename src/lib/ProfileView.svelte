@@ -5,6 +5,7 @@
   import { fmtNum } from '../core/units';
   import { app } from './app.svelte';
   import { fmtInt, fmtPortions } from './format';
+  import BatchSettings from './BatchSettings.svelte';
   import Icon from './Icon.svelte';
   import { ACTIVITY_LABEL, DIET_LABEL, EXCLUSION_LABEL, GOAL_LABEL, MACRO_PRESET_LABEL, MEAL_LABEL, MICRO_LABEL, MICRO_UNIT } from './labels';
 
@@ -338,13 +339,7 @@
           </select>
         </label>
 
-        <label class="check">
-          <input type="checkbox" bind:checked={app.profile.cookForTwoDays} />
-          <span>
-            Готовить обед и ужин сразу на два дня
-            <small class="muted">Блюда повторяются парами: меньше готовки и покупок.</small>
-          </span>
-        </label>
+        <BatchSettings />
       </section>
 
       <section class="panel">
@@ -602,23 +597,6 @@
     width: 1.6rem;
     height: 1.6rem;
     border-radius: 999px;
-  }
-
-  .check {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 0.6rem;
-    align-items: start;
-    cursor: pointer;
-  }
-
-  .check input {
-    margin-top: 0.2rem;
-  }
-
-  .check small {
-    display: block;
-    font-size: 0.84rem;
   }
 
   .buttons {

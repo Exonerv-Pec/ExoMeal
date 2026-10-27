@@ -126,6 +126,20 @@ describe('interface', () => {
     await tick();
     expect(document.body.textContent).toContain('Углеводы, %');
 
+    // Batch cooking from the week page: one dish for four days, the week rebuilds at once.
+    await go('plan');
+    const batch = $$<HTMLSelectElement>('.compact select')[0];
+    batch.value = '4';
+    batch.dispatchEvent(new Event('change', { bubbles: true }));
+    await tick();
+    expect(document.body.textContent).toContain('Готовим на 4 дня');
+    expect(document.body.textContent).toContain('Из готового');
+    const lunches = $$('article.day').map((d) => d.querySelectorAll('.cell')[1].querySelector('.title')!.textContent);
+    expect(new Set(lunches.slice(0, 4)).size).toBe(1);
+    expect(document.body.textContent).toMatch(/\d+ разн\S+ блюд\S* за неделю/);
+    await go('profile');
+    expect(document.body.textContent).toContain('Готовка впрок');
+
     // Everything is remembered.
     expect(localStorage.getItem(STORAGE_KEY)).toContain('"version":1');
   });
